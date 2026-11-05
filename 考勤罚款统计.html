@@ -84,6 +84,16 @@
   /* 周日说明 */
   .sundays{font-size:13px;color:var(--text2);background:var(--blue-soft);border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .sundays b{color:var(--blue)}
+  /* A/B 组轮休日期选择 */
+  .rest-picker{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}
+  .rest-day{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit;background:#fff;min-width:52px;transition:.12s}
+  .rest-day:hover{border-color:var(--blue)}
+  .rest-day b{font-size:13px;color:var(--text);line-height:1}
+  .rest-day span{font-size:10px;color:var(--text2);line-height:1}
+  .rest-day.a{background:var(--blue);border-color:var(--blue)}
+  .rest-day.a b,.rest-day.a span{color:#fff}
+  .rest-day.b{background:var(--green);border-color:var(--green)}
+  .rest-day.b b,.rest-day.b span{color:#fff}
 
   /* 员工表 */
   table{width:100%;border-collapse:collapse;font-size:13px}
@@ -306,10 +316,14 @@
         </div>
 
         <div class="card">
-          <h2>周日轮休 <span class="tag">月休两天 A/B 轮休</span></h2>
+          <h2>周日轮休 <span class="tag">可手动调整</span></h2>
           <div class="sundays" id="sundayInfo">导入后显示</div>
+          <div class="hint" style="font-size:12px;color:var(--text2);margin-bottom:8px">点每个日期在「A休 → B休 → 不休」间循环切换，方便调休。C 组可单休/双休，D 组不休。</div>
+          <div class="rest-picker" id="restPicker"></div>
           <div class="param-row"><label>A 组休</label><span id="aRest" style="color:var(--blue);font-weight:600"></span></div>
           <div class="param-row"><label>B 组休</label><span id="bRest" style="color:var(--green);font-weight:600"></span></div>
+          <div class="param-row"><label>C 组</label><button type="button" class="btn-mini" id="cModeBtn">单休（每周日）</button></div>
+          <div class="param-row"><label>D 组</label><span style="color:var(--text2)">不休</span></div>
         </div>
 
         <div class="card">
@@ -496,7 +510,10 @@ let S = {
   showTripRemark: false,// 出差登记表备注列是否显示
   tripDeptFilter: "",   // 出差登记表部门筛选
   holidays: new Set(),  // 手动设置的节假日（法定假期等）"M/D"，考勤总表显示黄色圆圈
-  marks: []             // 考勤标记（符号+含义+颜色），可增删，驱动免打卡循环切换与符号显示
+  marks: [],            // 考勤标记（符号+含义+颜色），可增删，驱动免打卡循环切换与符号显示
+  restA: new Set(),     // A 组轮休日期 "M.D"（可手动调整，默认隔周）
+  restB: new Set(),     // B 组轮休日期 "M.D"（可手动调整，默认隔周）
+  cDouble: false        // C 组是否双休（false=单休每周日，true=双休周六+周日）
 };
 
 // 默认考勤标记：符号 + 含义（文字显示，如"缺=缺勤"、"差=出差"）
@@ -624,13 +641,13 @@ function sundayIndex(dateObj){
   for(let k=0;k<S.sundays.length;k++) if(dateKey(S.sundays[k])===dateKey(dateObj)) return k+1;
   return -1;
 }
-function empRestsOnSunday(emp, dateObj){
-  const idx = sundayIndex(dateObj);
-  if(idx<0) return false;
-  if(emp.group==="A") return idx%2===1;
-  if(emp.group==="B") return idx%2===0;
-  if(emp.group==="C") return true;   // C 组：每周日休息
-  if(emp.group==="D") return false;  // D 组：不休息
+function empRestsOnDate(emp, dateObj){
+  const dk = dateKey(dateObj);
+  const dow = dateObj.getDay();
+  if(emp.group==="A") return S.restA.has(dk);   // A 组：休手动指定的日期
+  if(emp.group==="B") return S.restB.has(dk);   // B 组：休手动指定的日期
+  if(emp.group==="C") return S.cDouble ? (dow===0 || dow===6) : (dow===0);  // C 组：单休=周日，双休=周六+周日
+  if(emp.group==="D") return false;             // D 组：不休
   return false;
 }
 
@@ -663,7 +680,7 @@ function judge(emp, day, skipOv){
   // 全体休息日
   if(isRestDate(dateObj)){ rec.status="休息"; rec.detail="全体休息日"; return rec; }
   // 周日轮休
-  if(dateObj.getDay()===0 && empRestsOnSunday(emp, dateObj)){ rec.status="休息"; rec.detail="周日轮休"; return rec; }
+  if(empRestsOnDate(emp, dateObj)){ rec.status="休息"; rec.detail="轮休"; return rec; }
 
   // 特殊情况覆盖
   const ovKey = emp.name+"|"+dstr;
@@ -870,7 +887,7 @@ function attendanceCell(emp, day){
       else if(ov.indexOf("休息")>=0 || ov.indexOf("调休")>=0){ am="○"; pm="○"; }
       else { am="√"; pm="√"; }
     } else if(man){ am = man.am; pm = man.pm; }
-    else if(isRestDate(dateObj) || (dateObj.getDay()===0 && empRestsOnSunday(emp, dateObj))){ am="○"; pm="○"; }
+    else if(isRestDate(dateObj) || empRestsOnDate(emp, dateObj)){ am="○"; pm="○"; }
     else { am="√"; pm="√"; }
     return {date:dstr, day, am, pm, holiday:isHoliday(dateObj),
       amPresent: (am==="√"||am==="差") ? 0.5 : 0,
@@ -1372,13 +1389,15 @@ function render(){
     <div class="stat"><div class="num">${external.length}</div><div class="label">外勤/送货</div></div>
     <div class="stat"><div class="num">${S.sundays.length}</div><div class="label">本月周日</div></div>`;
 
-  // 周日说明
+  // 周日说明 + A/B 组轮休
   const sList = S.sundays.map(dateStr).join("、") || "无";
-  const aList = S.sundays.filter((d,i)=>(i+1)%2===1).map(dateStr).join("、") || "无";
-  const bList = S.sundays.filter((d,i)=>(i+1)%2===0).map(dateStr).join("、") || "无";
+  const aList = S.sundays.filter(d=>S.restA.has(dateKey(d))).map(dateStr).join("、") || "无";
+  const bList = S.sundays.filter(d=>S.restB.has(dateKey(d))).map(dateStr).join("、") || "无";
   $("sundayInfo").innerHTML = `本月周日：<b>${sList}</b>`;
   $("aRest").textContent = aList;
   $("bRest").textContent = bList;
+  renderRestPicker();
+  updateCGroupBtn();
 
   renderDeptCuts();
   renderEmployees();
@@ -1566,6 +1585,35 @@ function renderHolidays(){
     html += `<div class="day ${on}" data-d="${d}">${d}</div>`;
   }
   grid.innerHTML = html;
+}
+// A/B 组轮休日期选择器：每个周日一个按钮，点击在「A休 → B休 → 不休」间循环
+function renderRestPicker(){
+  const box = $("restPicker"); if(!box) return;
+  box.innerHTML = "";
+  S.sundays.forEach(d=>{
+    const dk = dateKey(d);
+    let cls = "off", tag = "不休";
+    if(S.restA.has(dk)){ cls = "a"; tag = "A休"; }
+    else if(S.restB.has(dk)){ cls = "b"; tag = "B休"; }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rest-day " + cls;
+    btn.dataset.dk = dk;
+    btn.innerHTML = `<b>${dateStr(d)}</b><span>${tag}</span>`;
+    btn.onclick = ()=>{ cycleRestDay(dk); };
+    box.appendChild(btn);
+  });
+}
+function cycleRestDay(dk){
+  pushUndo("调整轮休日");
+  if(S.restA.has(dk)){ S.restA.delete(dk); S.restB.add(dk); }
+  else if(S.restB.has(dk)){ S.restB.delete(dk); }
+  else { S.restA.add(dk); }
+  render();
+}
+function updateCGroupBtn(){
+  const btn = $("cModeBtn"); if(!btn) return;
+  btn.textContent = S.cDouble ? "双休（周六+周日）" : "单休（每周日）";
 }
 // 考勤标记管理列表
 function renderMarks(){
@@ -1915,7 +1963,10 @@ function savePersist(){
     attManual: S.attManual,
     tripDeptFilter: S.tripDeptFilter,
     holidays: [...S.holidays],
-    marks: S.marks
+    marks: S.marks,
+    restA: [...S.restA],
+    restB: [...S.restB],
+    cDouble: S.cDouble
   };
   try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
 }
@@ -1929,6 +1980,9 @@ function loadPersist(){
   if(S.persist.holidays) S.holidays = new Set(S.persist.holidays);
   if(S.persist.marks && S.persist.marks.length) S.marks = S.persist.marks;
   else if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
+  if(S.persist.restA != null) S.restA = new Set(S.persist.restA);
+  if(S.persist.restB != null) S.restB = new Set(S.persist.restB);
+  if(S.persist.cDouble != null) S.cDouble = !!S.persist.cDouble;
 }
 
 /* ================= 导入 ================= */
@@ -1941,6 +1995,15 @@ function handleFile(file){
       S.employees = employees;
       S.baseDate = baseDate;
       S.sundays = computeSundays(baseDate);
+      // A/B 组轮休：优先沿用本月已手动调整的（跨月则按隔周重新初始化）
+      const sundayKeys = new Set(S.sundays.map(d=>dateKey(d)));
+      const pRA = S.persist.restA, pRB = S.persist.restB;
+      if(pRA != null && pRB != null && [...pRA, ...pRB].every(k=>sundayKeys.has(k))){
+        S.restA = new Set(pRA); S.restB = new Set(pRB);
+      } else {
+        S.restA = new Set(); S.restB = new Set();
+        S.sundays.forEach((d,i)=>{ if((i+1)%2===1) S.restA.add(dateKey(d)); else S.restB.add(dateKey(d)); });
+      }
       S.overrides = S.persist.overrides || {};
       S.halfOverrides = S.persist.halfOverrides || {};
 
@@ -2093,7 +2156,8 @@ function bindEvents(){
     savePersist();
     renderAttendance();
   });
-  // 考勤标记：修改符号/含义/颜色
+  // C 组单休/双休切换
+  $("cModeBtn").onclick = ()=>{ pushUndo("切换C组双休"); S.cDouble = !S.cDouble; render(); };
   $("markList").addEventListener("change", e=>{
     const row = e.target.closest(".mark-row"); if(!row) return;
     const k = e.target.dataset.k; if(!k) return;
