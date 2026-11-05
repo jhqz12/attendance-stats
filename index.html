@@ -160,6 +160,11 @@
   .att-table td.c.editable{cursor:pointer}
   .att-table td.c.editable:hover{background:#eef4ff;outline:1px solid var(--blue)}
   .att-table td.c.editable:active{background:#dbe8ff}
+  /* 悬浮定位：鼠标停在某天某上下时，顶部日期/星期/上下的表头高亮，整列竖条同亮 */
+  .att-table th.day-hl{background:var(--blue-soft);color:var(--blue);font-weight:700}
+  .att-table th.half-hl{background:var(--blue);color:#fff;font-weight:700}
+  .att-table td.c.col-hl{background:#f2f7ff}
+  .att-table td.c.cell-hl{background:#dbe8ff;outline:2px solid var(--blue);outline-offset:-1px;position:relative;z-index:1}
   .col-toggles{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px}
   .col-toggles label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
   .col-toggles input{accent-color:var(--blue)}
@@ -1647,9 +1652,9 @@ function renderAttendance(){
   let head3 = `<tr>`;
   for(let day=1; day<=lastDay; day++){
     const wd = WD[dayToDate(day).getDay()];
-    head1 += `<th colspan="2">${day}</th>`;
-    head2 += `<th colspan="2">${wd}</th>`;
-    head3 += `<th class="half">上</th><th class="half">下</th>`;
+    head1 += `<th colspan="2" data-day="${day}">${day}</th>`;
+    head2 += `<th colspan="2" data-day="${day}">${wd}</th>`;
+    head3 += `<th class="half" data-day="${day}" data-half="am">上</th><th class="half" data-day="${day}" data-half="pm">下</th>`;
   }
   visCols.forEach(c=>{ head1 += `<th rowspan="3">${c.label}</th>`; });
   head1 += `</tr>`; head2 += `</tr>`; head3 += `</tr>`;
@@ -2265,6 +2270,31 @@ function bindEvents(){
     savePersist();
     renderAttendance();
     renderTrip();
+  });
+  // 悬浮定位：鼠标停在某个格子上时，顶部对应「日期 / 星期 / 上下午」表头高亮，同列竖条同亮
+  function clearAttHl(wrap){
+    wrap.querySelectorAll("th.day-hl, th.half-hl, td.col-hl, td.cell-hl").forEach(el=>{
+      el.classList.remove("day-hl","half-hl","col-hl","cell-hl");
+    });
+  }
+  function setAttHl(td){
+    const wrap = $("attWrap");
+    clearAttHl(wrap);
+    const day = td.dataset.day, half = td.dataset.half;
+    wrap.querySelectorAll(`th[data-day="${day}"]:not([data-half])`).forEach(th=>th.classList.add("day-hl"));
+    wrap.querySelectorAll(`th.half[data-day="${day}"][data-half="${half}"]`).forEach(th=>th.classList.add("half-hl"));
+    wrap.querySelectorAll(`td.c[data-day="${day}"][data-half="${half}"]`).forEach(c=>c.classList.add("col-hl"));
+    td.classList.add("cell-hl");
+  }
+  $("attWrap").addEventListener("mouseover", e=>{
+    const td = e.target.closest("td.c.editable"); if(!td) return;
+    setAttHl(td);
+  });
+  $("attWrap").addEventListener("mouseout", e=>{
+    const td = e.target.closest("td.c.editable"); if(!td) return;
+    const rel = e.relatedTarget;
+    if(rel && rel.closest && rel.closest("td.c.editable")===td) return;
+    clearAttHl($("attWrap"));
   });
   // 总表修改 → 手动同步到罚款明细
   $("btnSyncToDetail").onclick = ()=>{
