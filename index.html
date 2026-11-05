@@ -165,6 +165,10 @@
   .att-table th.half-hl{background:var(--blue);color:#fff;font-weight:700}
   .att-table td.c.col-hl{background:#f2f7ff}
   .att-table td.c.cell-hl{background:#dbe8ff;outline:2px solid var(--blue);outline-offset:-1px;position:relative;z-index:1}
+  .att-table tr.row-hl td{background:#f6f9ff}
+  .att-table tr.row-hl td.name{background:var(--blue-soft);font-weight:700}
+  .att-table tr.row-hl td.idx{background:var(--blue-soft);font-weight:700}
+  .att-table th.att-title{background:#fff;font-weight:700;font-size:13px;color:var(--text);letter-spacing:.5px}
   .col-toggles{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px}
   .col-toggles label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
   .col-toggles input{accent-color:var(--blue)}
@@ -1633,6 +1637,21 @@ function renderMarks(){
       <button class="btn-mini del" data-delmark="${i}" title="删除标记">删</button>
     </div>`).join("");
 }
+// 全勤天数：本月日历天数 - 周日 - 节假日 - 全员无打卡的休息日
+function fullAttendanceDays(){
+  const lastDay = daysInMonth();
+  let work = 0, rest = 0;
+  for(let day=1; day<=lastDay; day++){
+    const d = dayToDate(day);
+    const dk = dateKey(d);
+    const isSun = d.getDay()===0;
+    const isHol = S.holidays.has(dk);
+    const isAllRest = S.restDays.has(dk);
+    if(isSun || isHol || isAllRest) rest++;
+    else work++;
+  }
+  return {work, rest, total:lastDay};
+}
 function renderAttendance(){
   renderAttToggles();
   renderSettingToggles();
@@ -1646,6 +1665,8 @@ function renderAttendance(){
   const lastDay = daysInMonth();
   const vis = getAttCols();
   const visCols = ATT_COLS.filter(c=>vis[c.key]);
+  const {y,m} = ym();
+  const fad = fullAttendanceDays();
 
   let head1 = `<tr><th rowspan="3" class="idx">序号</th><th rowspan="3" class="name">姓名</th>`;
   let head2 = `<tr>`;
@@ -1671,7 +1692,9 @@ function renderAttendance(){
     return `<tr><td class="idx">${idx+1}</td><td${nameCls}>${esc(p.name)}</td>${cells}${stats}</tr>`;
   }).join("");
 
-  $("attWrap").innerHTML = `<table class="att-table"><thead>${head1}${head2}${head3}</thead><tbody>${body}</tbody></table>`;
+  const totalCols = 2 + lastDay*2 + visCols.length;
+  const head0 = `<tr><th colspan="${totalCols}" class="att-title">${y}年${m}月 考勤总表 · 应出勤 <b style="color:var(--blue)">${fad.work}</b> 天（本月共 ${fad.total} 天，休 ${fad.rest} 天）</th></tr>`;
+  $("attWrap").innerHTML = `<table class="att-table"><thead>${head0}${head1}${head2}${head3}</thead><tbody>${body}</tbody></table>`;
 }
 
 /* ================= 出差登记表渲染 ================= */
@@ -2271,19 +2294,28 @@ function bindEvents(){
     renderAttendance();
     renderTrip();
   });
-  // 悬浮定位：鼠标停在某个格子上时，顶部对应「日期 / 星期 / 上下午」表头高亮，同列竖条同亮
+  // 悬浮定位：鼠标停在某个格子上时，顶部对应「日期 / 星期 / 上下午」表头高亮，同列竖条同亮，同行横条同亮
   function clearAttHl(wrap){
-    wrap.querySelectorAll("th.day-hl, th.half-hl, td.col-hl, td.cell-hl").forEach(el=>{
-      el.classList.remove("day-hl","half-hl","col-hl","cell-hl");
+    wrap.querySelectorAll("th.day-hl, th.half-hl, td.col-hl, td.cell-hl, tr.row-hl, td.name-hl, td.idx-hl").forEach(el=>{
+      el.classList.remove("day-hl","half-hl","col-hl","cell-hl","row-hl","name-hl","idx-hl");
     });
   }
   function setAttHl(td){
     const wrap = $("attWrap");
     clearAttHl(wrap);
     const day = td.dataset.day, half = td.dataset.half;
+    // 顶部表头：日期 + 星期 + 上/下
     wrap.querySelectorAll(`th[data-day="${day}"]:not([data-half])`).forEach(th=>th.classList.add("day-hl"));
     wrap.querySelectorAll(`th.half[data-day="${day}"][data-half="${half}"]`).forEach(th=>th.classList.add("half-hl"));
+    // 同列竖条（当天这个上/下午的所有人）
     wrap.querySelectorAll(`td.c[data-day="${day}"][data-half="${half}"]`).forEach(c=>c.classList.add("col-hl"));
+    // 同行横条（这个人这一整天）+ 姓名/序号列高亮，方便知道是谁
+    const tr = td.closest("tr");
+    if(tr){
+      tr.classList.add("row-hl");
+      const nm = tr.querySelector("td.name"); if(nm) nm.classList.add("name-hl");
+      const ix = tr.querySelector("td.idx"); if(ix) ix.classList.add("idx-hl");
+    }
     td.classList.add("cell-hl");
   }
   $("attWrap").addEventListener("mouseover", e=>{
