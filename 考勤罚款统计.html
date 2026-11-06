@@ -14,6 +14,7 @@
     --green:#12a150; --green-soft:#e9f7ef;
     --orange:#e88a1a; --orange-soft:#fdf3e5;
     --hl:#CCE8FB; --hl-mid:#A8D3F5; --hl-dark:#1a73e8;
+    --hl2:#DEE9F5; --hl2-mid:#BCCBE4; --hl2-dark:#3b5b8c;
     --radius:14px; --shadow:0 2px 14px rgba(20,30,50,.06);
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -161,11 +162,15 @@
   .att-table td.c.editable{cursor:pointer}
   .att-table td.c.editable:hover{background:#eef4ff;outline:1px solid var(--blue)}
   .att-table td.c.editable:active{background:#dbe8ff}
-  /* 悬浮定位：鼠标停在某天某上下时，顶部日期/星期/上下的表头高亮，整列竖条+同行横条同亮（配色可切换） */
-  .att-table th.day-hl{background:var(--hl);color:var(--hl-dark);font-weight:700}
-  .att-table th.half-hl{background:var(--hl-dark);color:#fff;font-weight:700}
-  .att-table td.c.col-hl{background:var(--hl)}
-  .att-table td.c.cell-hl{background:var(--hl-mid);outline:2px solid var(--hl-dark);outline-offset:-1px;position:relative;z-index:1}
+  /* 悬浮定位高亮：考勤区用 --hl 系列，统计区用 --hl2 系列；表头深色档为「加深」 */
+  .att-table th.th-hl{background:var(--hl);color:var(--hl-dark);font-weight:700}
+  .att-table th.th-hl-strong{background:var(--hl-dark);color:#fff;font-weight:700}
+  .att-table th.th-hl2{background:var(--hl2);color:var(--hl2-dark);font-weight:700}
+  .att-table th.th-hl2-strong{background:var(--hl2-dark);color:#fff;font-weight:700}
+  .att-table td.col-hl{background:var(--hl)}
+  .att-table td.col-hl2{background:var(--hl2)}
+  .att-table td.cell-hl{background:var(--hl-mid);outline:2px solid var(--hl-dark);outline-offset:-1px;position:relative;z-index:1}
+  .att-table td.cell-hl2{background:var(--hl2-mid);outline:2px solid var(--hl2-dark);outline-offset:-1px;position:relative;z-index:1}
   .att-table tr.row-hl td{background:var(--hl)}
   .att-table tr.row-hl td.name{background:var(--hl);font-weight:700}
   .att-table tr.row-hl td.idx{background:var(--hl);font-weight:700}
@@ -175,7 +180,7 @@
   .hl-swatches .hl-sw{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:9px;padding:5px 9px;cursor:pointer;font-size:12px;color:var(--text);transition:.15s;background:#fff}
   .hl-swatches .hl-sw:hover{border-color:var(--blue)}
   .hl-swatches .hl-sw .dot{width:20px;height:20px;border-radius:6px;border:1px solid rgba(0,0,0,.08);flex-shrink:0}
-  .hl-swatches .hl-sw.on{border-color:var(--hl-dark);box-shadow:0 0 0 2px var(--hl-dark);font-weight:600}
+  .hl-swatches .hl-sw.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue);font-weight:600}
   .col-toggles{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px}
   .col-toggles label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
   .col-toggles input{accent-color:var(--blue)}
@@ -367,8 +372,11 @@
           <div class="param-sep" style="margin-top:0;padding-top:0;border-top:none">统计列（显示 / 隐藏）</div>
           <div class="col-toggles" id="attTogglesInSetting"></div>
           <div class="param-sep">悬浮高亮颜色</div>
-          <div class="legend-hint">鼠标停在总表格子上时，十字高亮（行/列/表头）用这个颜色，点色块切换。</div>
+          <div class="legend-hint">鼠标停在总表任意格/表头上时，十字高亮（行·列·表头）用这些颜色，点色块切换。考勤区与统计列可分别设置。</div>
+          <div class="legend-hint" style="margin-bottom:4px;background:transparent;padding:0">考勤区（日期·星期·上下午·考勤格子）</div>
           <div class="hl-swatches" id="hlSwatches"></div>
+          <div class="legend-hint" style="margin:10px 0 4px;background:transparent;padding:0">统计列（出勤·请假·扣款·加班·午餐·出差）</div>
+          <div class="hl-swatches" id="hlSwatches2"></div>
           <div class="param-sep">考勤标记（符号 = 含义）</div>
           <div class="legend-hint">标记用于考勤总表与免打卡人员格子切换，可增删、改符号、改含义文字，如「缺=缺勤」「差=出差」。</div>
           <div id="markList"></div>
@@ -533,7 +541,8 @@ let S = {
   restA: new Set(),     // A 组轮休日期 "M.D"（可手动调整，默认隔周）
   restB: new Set(),     // B 组轮休日期 "M.D"（可手动调整，默认隔周）
   cDouble: false,       // C 组是否双休（false=单休每周日，true=双休周六+周日）
-  hlColor: "#CCE8FB"    // 考勤总表悬浮高亮主色（浅色，可在设置里切换）
+  hlColor: "#CCE8FB",   // 考勤总表悬浮高亮主色（考勤区，浅色，可在设置里切换）
+  hlColor2: "#DEE9F5"   // 统计列（出勤/请假/扣款等）悬浮高亮主题色，可与考勤区不同
 };
 
 // 考勤总表悬浮高亮配色（浅色=行列背景，中色=当前格，深色=边框/上下表头）
@@ -542,9 +551,14 @@ const HL_COLORS = [
   {name:"浅薰衣草紫", light:"#E8E4F6", mid:"#CFC6EE", dark:"#6a4fbf"},
   {name:"薄荷浅青",   light:"#D9F2F7", mid:"#B7E5EC", dark:"#0e9494"},
   {name:"暖浅杏",     light:"#FFF2D8", mid:"#FFE3B0", dark:"#c47f00"},
-  {name:"沉稳浅蓝",   light:"#DEE9F5", mid:"#BCCBE4", dark:"#3b5b8c"}
+  {name:"沉稳浅蓝",   light:"#DEE9F5", mid:"#BCCBE4", dark:"#3b5b8c"},
+  {name:"淡蜜桃",     light:"#FFF1E6", mid:"#FFD9C2", dark:"#D9825B"},
+  {name:"浅桃奶霜",   light:"#FFF2E8", mid:"#FFDFCB", dark:"#D98A6A"},
+  {name:"浅裸棕",     light:"#F9EBE0", mid:"#E8D3C2", dark:"#A98467"},
+  {name:"浅蜂蜜奶",   light:"#FFF6E8", mid:"#FFE8C7", dark:"#D9A05B"}
 ];
 function hlPalette(){ return HL_COLORS.find(c=>c.light===S.hlColor) || HL_COLORS[0]; }
+function hlPalette2(){ return HL_COLORS.find(c=>c.light===S.hlColor2) || HL_COLORS[0]; }
 
 // 默认考勤标记：符号 + 含义（文字显示，如"缺=缺勤"、"差=出差"）
 // 颜色采用苹果系统色系，柔和、大气
@@ -1659,14 +1673,22 @@ function renderMarks(){
       <button class="btn-mini del" data-delmark="${i}" title="删除标记">删</button>
     </div>`).join("");
 }
-// 悬浮高亮配色选择
+// 悬浮高亮配色选择（考勤区 + 统计列两个色板）
 function renderHlColors(){
-  const box = $("hlSwatches"); if(!box) return;
-  const cur = S.hlColor;
-  box.innerHTML = HL_COLORS.map(c=>`
-    <div class="hl-sw ${c.light===cur?"on":""}" data-hl="${c.light}" title="${c.name}">
-      <span class="dot" style="background:${c.light};border-color:${c.dark}"></span>${c.name}
-    </div>`).join("");
+  const box = $("hlSwatches");
+  if(box){
+    box.innerHTML = HL_COLORS.map(c=>`
+      <div class="hl-sw ${c.light===S.hlColor?"on":""}" data-hl="${c.light}" title="${c.name}">
+        <span class="dot" style="background:${c.light};border-color:${c.dark}"></span>${c.name}
+      </div>`).join("");
+  }
+  const box2 = $("hlSwatches2");
+  if(box2){
+    box2.innerHTML = HL_COLORS.map(c=>`
+      <div class="hl-sw ${c.light===S.hlColor2?"on":""}" data-hl2="${c.light}" title="${c.name}">
+        <span class="dot" style="background:${c.light};border-color:${c.dark}"></span>${c.name}
+      </div>`).join("");
+  }
 }
 // 全勤天数：本月日历天数 - 周日 - 节假日 - 全员无打卡的休息日
 function fullAttendanceDays(){
@@ -1699,16 +1721,16 @@ function renderAttendance(){
   const {y,m} = ym();
   const fad = fullAttendanceDays();
 
-  let head1 = `<tr><th rowspan="3" class="idx">序号</th><th rowspan="3" class="name">姓名</th>`;
+  let head1 = `<tr><th rowspan="3" class="idx" data-th="idx">序号</th><th rowspan="3" class="name" data-th="name">姓名</th>`;
   let head2 = `<tr>`;
   let head3 = `<tr>`;
   for(let day=1; day<=lastDay; day++){
     const wd = WD[dayToDate(day).getDay()];
-    head1 += `<th colspan="2" data-day="${day}">${day}</th>`;
-    head2 += `<th colspan="2" data-day="${day}">${wd}</th>`;
-    head3 += `<th class="half" data-day="${day}" data-half="am">上</th><th class="half" data-day="${day}" data-half="pm">下</th>`;
+    head1 += `<th colspan="2" data-th="date" data-hday="${day}">${day}</th>`;
+    head2 += `<th colspan="2" data-th="week" data-hday="${day}">${wd}</th>`;
+    head3 += `<th class="half" data-th="half" data-hday="${day}" data-hhalf="am">上</th><th class="half" data-th="half" data-hday="${day}" data-hhalf="pm">下</th>`;
   }
-  visCols.forEach(c=>{ head1 += `<th rowspan="3">${c.label}</th>`; });
+  visCols.forEach((c,i)=>{ head1 += `<th rowspan="3" data-th="stat" data-hcol="${2+lastDay*2+i}">${c.label}</th>`; });
   head1 += `</tr>`; head2 += `</tr>`; head3 += `</tr>`;
 
   const body = data.map((p,idx)=>{
@@ -1716,20 +1738,24 @@ function renderAttendance(){
       const wk = c.day===0 || (dayToDate(c.day).getDay()===0);
       const wkCls = wk ? "wknd" : "";
       const amCol = cellColor(c.am, c.holiday), pmCol = cellColor(c.pm, c.holiday);
-      return `<td class="c editable ${wkCls}" style="color:${amCol}" data-name="${esc(p.name)}" data-day="${c.day}" data-half="am" title="点击切换">${c.am}</td><td class="c editable ${wkCls}" style="color:${pmCol}" data-name="${esc(p.name)}" data-day="${c.day}" data-half="pm" title="点击切换">${c.pm}</td>`;
+      const amColIdx = 2+(c.day-1)*2, pmColIdx = amColIdx+1;
+      return `<td class="c editable ${wkCls}" style="color:${amCol}" data-col="${amColIdx}" data-name="${esc(p.name)}" data-day="${c.day}" data-half="am" title="点击切换">${c.am}</td><td class="c editable ${wkCls}" style="color:${pmCol}" data-col="${pmColIdx}" data-name="${esc(p.name)}" data-day="${c.day}" data-half="pm" title="点击切换">${c.pm}</td>`;
     }).join("");
-    const stats = visCols.map(c=>`<td class="stat">${fmtDay(p[c.key])}</td>`).join("");
+    const stats = visCols.map((c,i)=>`<td class="stat" data-col="${2+lastDay*2+i}" data-stat="1">${fmtDay(p[c.key])}</td>`).join("");
     const nameCls = p.noPunch ? ' class="name np-name"' : ' class="name"';
-    return `<tr><td class="idx">${idx+1}</td><td${nameCls}>${esc(p.name)}</td>${cells}${stats}</tr>`;
+    return `<tr><td class="idx" data-col="0">${idx+1}</td><td${nameCls} data-col="1">${esc(p.name)}</td>${cells}${stats}</tr>`;
   }).join("");
 
   const totalCols = 2 + lastDay*2 + visCols.length;
   const head0 = `<tr><th colspan="${totalCols}" class="att-title">${y}年${m}月 考勤总表 · 应出勤 <b style="color:var(--blue)">${fad.work}</b> 天（本月共 ${fad.total} 天，休 ${fad.rest} 天）</th></tr>`;
   const wrap = $("attWrap");
-  const hl = hlPalette();
+  const hl = hlPalette(), hl2 = hlPalette2();
   wrap.style.setProperty("--hl", hl.light);
   wrap.style.setProperty("--hl-mid", hl.mid);
   wrap.style.setProperty("--hl-dark", hl.dark);
+  wrap.style.setProperty("--hl2", hl2.light);
+  wrap.style.setProperty("--hl2-mid", hl2.mid);
+  wrap.style.setProperty("--hl2-dark", hl2.dark);
   wrap.innerHTML = `<table class="att-table"><thead>${head0}${head1}${head2}${head3}</thead><tbody>${body}</tbody></table>`;
 }
 
@@ -2031,7 +2057,8 @@ function savePersist(){
     restA: [...S.restA],
     restB: [...S.restB],
     cDouble: S.cDouble,
-    hlColor: S.hlColor
+    hlColor: S.hlColor,
+    hlColor2: S.hlColor2
   };
   try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
 }
@@ -2049,6 +2076,7 @@ function loadPersist(){
   if(S.persist.restB != null) S.restB = new Set(S.persist.restB);
   if(S.persist.cDouble != null) S.cDouble = !!S.persist.cDouble;
   if(S.persist.hlColor) S.hlColor = S.persist.hlColor;
+  if(S.persist.hlColor2) S.hlColor2 = S.persist.hlColor2;
 }
 
 /* ================= 导入 ================= */
@@ -2254,10 +2282,17 @@ function bindEvents(){
     savePersist();
     renderMarks(); renderAttendance();
   };
-  // 悬浮高亮配色切换
+  // 悬浮高亮配色切换（考勤区 + 统计列）
   $("hlSwatches").addEventListener("click", e=>{
     const sw = e.target.closest("[data-hl]"); if(!sw) return;
     S.hlColor = sw.dataset.hl;
+    savePersist();
+    renderHlColors();
+    renderAttendance();
+  });
+  $("hlSwatches2").addEventListener("click", e=>{
+    const sw = e.target.closest("[data-hl2]"); if(!sw) return;
+    S.hlColor2 = sw.dataset.hl2;
     savePersist();
     renderHlColors();
     renderAttendance();
@@ -2340,38 +2375,81 @@ function bindEvents(){
     renderAttendance();
     renderTrip();
   });
-  // 悬浮定位：鼠标停在某个格子上时，顶部对应「日期 / 星期 / 上下午」表头高亮，同列竖条同亮，同行横条同亮
+  // 悬浮定位：全表十字高亮（行 + 列 + 表头）。考勤区用 --hl、统计区用 --hl2；hover 表头时用深色档「加深」
+  const ATT_HL_CLASSES = ["th-hl","th-hl-strong","th-hl2","th-hl2-strong","col-hl","col-hl2","cell-hl","cell-hl2","row-hl"];
   function clearAttHl(wrap){
-    wrap.querySelectorAll("th.day-hl, th.half-hl, td.col-hl, td.cell-hl, tr.row-hl, td.name-hl, td.idx-hl").forEach(el=>{
-      el.classList.remove("day-hl","half-hl","col-hl","cell-hl","row-hl","name-hl","idx-hl");
+    wrap.querySelectorAll(".th-hl, .th-hl-strong, .th-hl2, .th-hl2-strong, .col-hl, .col-hl2, .cell-hl, .cell-hl2, .row-hl").forEach(el=>{
+      el.classList.remove(...ATT_HL_CLASSES);
     });
   }
-  function setAttHl(td){
+  function setAttHl(el){
     const wrap = $("attWrap");
     clearAttHl(wrap);
-    const day = td.dataset.day, half = td.dataset.half;
-    // 顶部表头：日期 + 星期 + 上/下
-    wrap.querySelectorAll(`th[data-day="${day}"]:not([data-half])`).forEach(th=>th.classList.add("day-hl"));
-    wrap.querySelectorAll(`th.half[data-day="${day}"][data-half="${half}"]`).forEach(th=>th.classList.add("half-hl"));
-    // 同列竖条（当天这个上/下午的所有人）
-    wrap.querySelectorAll(`td.c[data-day="${day}"][data-half="${half}"]`).forEach(c=>c.classList.add("col-hl"));
-    // 同行横条（这个人这一整天）+ 姓名/序号列高亮，方便知道是谁
-    const tr = td.closest("tr");
-    if(tr){
-      tr.classList.add("row-hl");
-      const nm = tr.querySelector("td.name"); if(nm) nm.classList.add("name-hl");
-      const ix = tr.querySelector("td.idx"); if(ix) ix.classList.add("idx-hl");
+    const d = el.dataset;
+    const isHead = !!d.th;   // hover 在表头
+    // 行高亮：仅数据行（tbody）触发
+    const tr = el.closest("tr");
+    if(tr && tr.parentNode && tr.parentNode.tagName === "TBODY") tr.classList.add("row-hl");
+
+    const one = sel => wrap.querySelector(sel);
+    const many = sel => wrap.querySelectorAll(sel);
+    const add = (n, cls)=>{ if(n) n.classList.add(cls); };
+
+    if(isHead){
+      // —— hover 表头：表头本身用深色档「加深」，并高亮对应整列 ——
+      if(d.th==="date" || d.th==="week"){
+        many(`td[data-day="${d.hday}"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="date"][data-hday="${d.hday}"]`), "th-hl-strong");
+        add(one(`th[data-th="week"][data-hday="${d.hday}"]`), "th-hl-strong");
+        many(`th[data-th="half"][data-hday="${d.hday}"]`).forEach(th=>th.classList.add("th-hl-strong"));
+      } else if(d.th==="half"){
+        many(`td[data-day="${d.hday}"][data-half="${d.hhalf}"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="date"][data-hday="${d.hday}"]`), "th-hl-strong");
+        add(one(`th[data-th="week"][data-hday="${d.hday}"]`), "th-hl-strong");
+        add(one(`th[data-th="half"][data-hday="${d.hday}"][data-hhalf="${d.hhalf}"]`), "th-hl-strong");
+      } else if(d.th==="stat"){
+        many(`td[data-col="${d.hcol}"]`).forEach(td=>td.classList.add("col-hl2"));
+        add(one(`th[data-th="stat"][data-hcol="${d.hcol}"]`), "th-hl2-strong");
+      } else if(d.th==="idx"){
+        many(`td[data-col="0"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="idx"]`), "th-hl-strong");
+      } else if(d.th==="name"){
+        many(`td[data-col="1"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="name"]`), "th-hl-strong");
+      }
+    } else {
+      // —— hover 数据格：表头用浅色档，当前格用中色+深边框 ——
+      if(d.stat==="1"){
+        many(`td[data-col="${d.col}"]`).forEach(td=>td.classList.add("col-hl2"));
+        add(one(`th[data-th="stat"][data-hcol="${d.col}"]`), "th-hl2");
+        el.classList.add("cell-hl2");
+      } else if(d.col==="0"){
+        many(`td[data-col="0"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="idx"]`), "th-hl");
+        el.classList.add("cell-hl");
+      } else if(d.col==="1"){
+        many(`td[data-col="1"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="name"]`), "th-hl");
+        el.classList.add("cell-hl");
+      } else {
+        many(`td[data-day="${d.day}"][data-half="${d.half}"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="date"][data-hday="${d.day}"]`), "th-hl");
+        add(one(`th[data-th="week"][data-hday="${d.day}"]`), "th-hl");
+        add(one(`th[data-th="half"][data-hday="${d.day}"][data-hhalf="${d.half}"]`), "th-hl-strong");
+        el.classList.add("cell-hl");
+      }
     }
-    td.classList.add("cell-hl");
   }
   $("attWrap").addEventListener("mouseover", e=>{
-    const td = e.target.closest("td.c.editable"); if(!td) return;
-    setAttHl(td);
+    const el = e.target.closest("td[data-col], th[data-th]");
+    if(!el) return;
+    setAttHl(el);
   });
   $("attWrap").addEventListener("mouseout", e=>{
-    const td = e.target.closest("td.c.editable"); if(!td) return;
+    const el = e.target.closest("td[data-col], th[data-th]");
+    if(!el) return;
     const rel = e.relatedTarget;
-    if(rel && rel.closest && rel.closest("td.c.editable")===td) return;
+    if(rel && rel.closest && rel.closest("td[data-col], th[data-th]")===el) return;
     clearAttHl($("attWrap"));
   });
   // 总表修改 → 手动同步到罚款明细
