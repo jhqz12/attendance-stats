@@ -13,6 +13,7 @@
     --red:#e5484d; --red-soft:#fdecec;
     --green:#12a150; --green-soft:#e9f7ef;
     --orange:#e88a1a; --orange-soft:#fdf3e5;
+    --hl:#CCE8FB; --hl-mid:#A8D3F5; --hl-dark:#1a73e8;
     --radius:14px; --shadow:0 2px 14px rgba(20,30,50,.06);
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -160,15 +161,21 @@
   .att-table td.c.editable{cursor:pointer}
   .att-table td.c.editable:hover{background:#eef4ff;outline:1px solid var(--blue)}
   .att-table td.c.editable:active{background:#dbe8ff}
-  /* 悬浮定位：鼠标停在某天某上下时，顶部日期/星期/上下的表头高亮，整列竖条同亮 */
-  .att-table th.day-hl{background:var(--blue-soft);color:var(--blue);font-weight:700}
-  .att-table th.half-hl{background:var(--blue);color:#fff;font-weight:700}
-  .att-table td.c.col-hl{background:#f2f7ff}
-  .att-table td.c.cell-hl{background:#dbe8ff;outline:2px solid var(--blue);outline-offset:-1px;position:relative;z-index:1}
-  .att-table tr.row-hl td{background:#f6f9ff}
-  .att-table tr.row-hl td.name{background:var(--blue-soft);font-weight:700}
-  .att-table tr.row-hl td.idx{background:var(--blue-soft);font-weight:700}
+  /* 悬浮定位：鼠标停在某天某上下时，顶部日期/星期/上下的表头高亮，整列竖条+同行横条同亮（配色可切换） */
+  .att-table th.day-hl{background:var(--hl);color:var(--hl-dark);font-weight:700}
+  .att-table th.half-hl{background:var(--hl-dark);color:#fff;font-weight:700}
+  .att-table td.c.col-hl{background:var(--hl)}
+  .att-table td.c.cell-hl{background:var(--hl-mid);outline:2px solid var(--hl-dark);outline-offset:-1px;position:relative;z-index:1}
+  .att-table tr.row-hl td{background:var(--hl)}
+  .att-table tr.row-hl td.name{background:var(--hl);font-weight:700}
+  .att-table tr.row-hl td.idx{background:var(--hl);font-weight:700}
   .att-table th.att-title{background:#fff;font-weight:700;font-size:13px;color:var(--text);letter-spacing:.5px}
+  /* 悬浮高亮配色选择 */
+  .hl-swatches{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  .hl-swatches .hl-sw{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:9px;padding:5px 9px;cursor:pointer;font-size:12px;color:var(--text);transition:.15s;background:#fff}
+  .hl-swatches .hl-sw:hover{border-color:var(--blue)}
+  .hl-swatches .hl-sw .dot{width:20px;height:20px;border-radius:6px;border:1px solid rgba(0,0,0,.08);flex-shrink:0}
+  .hl-swatches .hl-sw.on{border-color:var(--hl-dark);box-shadow:0 0 0 2px var(--hl-dark);font-weight:600}
   .col-toggles{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px}
   .col-toggles label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
   .col-toggles input{accent-color:var(--blue)}
@@ -356,9 +363,12 @@
         </div>
 
         <div class="card">
-          <h2>考勤总表设置 <span class="tag">统计列 / 标记</span></h2>
+          <h2>考勤总表设置 <span class="tag">统计列 / 标记 / 高亮色</span></h2>
           <div class="param-sep" style="margin-top:0;padding-top:0;border-top:none">统计列（显示 / 隐藏）</div>
           <div class="col-toggles" id="attTogglesInSetting"></div>
+          <div class="param-sep">悬浮高亮颜色</div>
+          <div class="legend-hint">鼠标停在总表格子上时，十字高亮（行/列/表头）用这个颜色，点色块切换。</div>
+          <div class="hl-swatches" id="hlSwatches"></div>
           <div class="param-sep">考勤标记（符号 = 含义）</div>
           <div class="legend-hint">标记用于考勤总表与免打卡人员格子切换，可增删、改符号、改含义文字，如「缺=缺勤」「差=出差」。</div>
           <div id="markList"></div>
@@ -522,8 +532,19 @@ let S = {
   marks: [],            // 考勤标记（符号+含义+颜色），可增删，驱动免打卡循环切换与符号显示
   restA: new Set(),     // A 组轮休日期 "M.D"（可手动调整，默认隔周）
   restB: new Set(),     // B 组轮休日期 "M.D"（可手动调整，默认隔周）
-  cDouble: false        // C 组是否双休（false=单休每周日，true=双休周六+周日）
+  cDouble: false,       // C 组是否双休（false=单休每周日，true=双休周六+周日）
+  hlColor: "#CCE8FB"    // 考勤总表悬浮高亮主色（浅色，可在设置里切换）
 };
+
+// 考勤总表悬浮高亮配色（浅色=行列背景，中色=当前格，深色=边框/上下表头）
+const HL_COLORS = [
+  {name:"清透浅蓝",   light:"#CCE8FB", mid:"#A8D3F5", dark:"#1a73e8"},
+  {name:"浅薰衣草紫", light:"#E8E4F6", mid:"#CFC6EE", dark:"#6a4fbf"},
+  {name:"薄荷浅青",   light:"#D9F2F7", mid:"#B7E5EC", dark:"#0e9494"},
+  {name:"暖浅杏",     light:"#FFF2D8", mid:"#FFE3B0", dark:"#c47f00"},
+  {name:"沉稳浅蓝",   light:"#DEE9F5", mid:"#BCCBE4", dark:"#3b5b8c"}
+];
+function hlPalette(){ return HL_COLORS.find(c=>c.light===S.hlColor) || HL_COLORS[0]; }
 
 // 默认考勤标记：符号 + 含义（文字显示，如"缺=缺勤"、"差=出差"）
 // 颜色采用苹果系统色系，柔和、大气
@@ -1413,6 +1434,7 @@ function render(){
   renderResults();
   renderHolidays();
   renderMarks();
+  renderHlColors();
   renderAttendance();
   renderTrip();
   savePersist();
@@ -1637,6 +1659,15 @@ function renderMarks(){
       <button class="btn-mini del" data-delmark="${i}" title="删除标记">删</button>
     </div>`).join("");
 }
+// 悬浮高亮配色选择
+function renderHlColors(){
+  const box = $("hlSwatches"); if(!box) return;
+  const cur = S.hlColor;
+  box.innerHTML = HL_COLORS.map(c=>`
+    <div class="hl-sw ${c.light===cur?"on":""}" data-hl="${c.light}" title="${c.name}">
+      <span class="dot" style="background:${c.light};border-color:${c.dark}"></span>${c.name}
+    </div>`).join("");
+}
 // 全勤天数：本月日历天数 - 周日 - 节假日 - 全员无打卡的休息日
 function fullAttendanceDays(){
   const lastDay = daysInMonth();
@@ -1694,7 +1725,12 @@ function renderAttendance(){
 
   const totalCols = 2 + lastDay*2 + visCols.length;
   const head0 = `<tr><th colspan="${totalCols}" class="att-title">${y}年${m}月 考勤总表 · 应出勤 <b style="color:var(--blue)">${fad.work}</b> 天（本月共 ${fad.total} 天，休 ${fad.rest} 天）</th></tr>`;
-  $("attWrap").innerHTML = `<table class="att-table"><thead>${head0}${head1}${head2}${head3}</thead><tbody>${body}</tbody></table>`;
+  const wrap = $("attWrap");
+  const hl = hlPalette();
+  wrap.style.setProperty("--hl", hl.light);
+  wrap.style.setProperty("--hl-mid", hl.mid);
+  wrap.style.setProperty("--hl-dark", hl.dark);
+  wrap.innerHTML = `<table class="att-table"><thead>${head0}${head1}${head2}${head3}</thead><tbody>${body}</tbody></table>`;
 }
 
 /* ================= 出差登记表渲染 ================= */
@@ -1994,7 +2030,8 @@ function savePersist(){
     marks: S.marks,
     restA: [...S.restA],
     restB: [...S.restB],
-    cDouble: S.cDouble
+    cDouble: S.cDouble,
+    hlColor: S.hlColor
   };
   try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
 }
@@ -2011,6 +2048,7 @@ function loadPersist(){
   if(S.persist.restA != null) S.restA = new Set(S.persist.restA);
   if(S.persist.restB != null) S.restB = new Set(S.persist.restB);
   if(S.persist.cDouble != null) S.cDouble = !!S.persist.cDouble;
+  if(S.persist.hlColor) S.hlColor = S.persist.hlColor;
 }
 
 /* ================= 导入 ================= */
@@ -2216,6 +2254,14 @@ function bindEvents(){
     savePersist();
     renderMarks(); renderAttendance();
   };
+  // 悬浮高亮配色切换
+  $("hlSwatches").addEventListener("click", e=>{
+    const sw = e.target.closest("[data-hl]"); if(!sw) return;
+    S.hlColor = sw.dataset.hl;
+    savePersist();
+    renderHlColors();
+    renderAttendance();
+  });
 
   // 颜色色板：苹果风预设色 + 自定义色
   let colorPickIdx = -1;
