@@ -51,8 +51,9 @@
   .stat .num.red{color:var(--red)}
   .stat .label{font-size:12px;color:var(--text2);margin-top:2px}
 
-  /* 两栏布局 */
-  .layout{display:grid;grid-template-columns:372px 1fr;gap:16px;align-items:start}
+  /* 两栏布局：左栏放宽，让员工管理等设置表格尽量不必横向滚动 */
+  .layout{display:grid;grid-template-columns:480px 1fr;gap:16px;align-items:start}
+  @media(max-width:1180px){.layout{grid-template-columns:420px 1fr}}
   @media(max-width:900px){.layout{grid-template-columns:1fr}}
   /* 左侧设置栏：悬浮跟随，滚动时始终可见，内容超高时栏内可滚动 */
   .settings-col{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow-y:auto;padding-right:2px;scrollbar-width:thin}
@@ -103,6 +104,10 @@
   th{color:var(--text2);font-weight:600;background:#fafbfc;white-space:nowrap}
   td{white-space:nowrap}
   #empTable th,#empTable td{padding:6px 5px}
+  /* 姓名列冻结：即使表格还需横向滚动，人名也始终留在最左边 */
+  #empTable th:first-child,#empTable td:first-child{position:sticky;left:0;background:#fff;z-index:2}
+  #empTable th:first-child{background:#fafbfc;z-index:3}
+  #empTable td:first-child{box-shadow:1px 0 0 var(--border)}
   #empTable .half-sal,.half-amt{border:1px solid var(--border);border-radius:7px;padding:4px 6px;font-size:13px;font-family:inherit}
   #empTable .half-sal{width:56px}
   #empTable .half-sal:focus,.half-amt:focus{outline:none;border-color:var(--blue)}
@@ -265,6 +270,34 @@
   .modal .field input,.modal .field select{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:14px;font-family:inherit}
   .modal .foot{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 
+  /* ===== 月份账本 ===== */
+  .bookbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 14px;margin-bottom:10px}
+  .book-left,.book-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .book-left{flex:1;min-width:260px}
+  .book-label{font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;margin-right:2px}
+  .book-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .book-tab{display:flex;align-items:center;gap:7px;border:1px solid var(--border);background:#fff;border-radius:9px;padding:5px 10px;cursor:pointer;font-size:12px;transition:.15s;white-space:nowrap}
+  .book-tab:hover{border-color:var(--blue);background:var(--blue-soft)}
+  .book-tab.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-soft);background:var(--blue-soft)}
+  .book-tab .bt-name{font-weight:700;color:var(--text)}
+  .book-tab.on .bt-name{color:var(--blue)}
+  .book-tab .bt-state{font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap}
+  .st-recording{background:#e8f2ff;color:#1a73e8}
+  .st-pending{background:#fff0dc;color:#c47f00}
+  .st-archived{background:#eef0f3;color:#6b7280}
+  .pending-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#e8930c;margin-right:4px;vertical-align:middle}
+  .book-mini-label{font-size:11px;color:var(--text2);white-space:nowrap}
+  .book-states{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .book-states .bs-btn{border:none;border-right:1px solid var(--border);background:#fff;padding:5px 9px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--text2)}
+  .book-states .bs-btn:last-child{border-right:none}
+  .book-states .bs-btn.on{background:var(--blue);color:#fff;font-weight:600}
+  .book-sep{width:1px;height:18px;background:var(--border)}
+  .book-hint{background:#fff8ec;border:1px solid #f5dcb0;color:#9a6a12;border-radius:10px;padding:8px 12px;font-size:12px;margin-bottom:10px;line-height:1.6}
+  .lock-bar{background:#f3f5f8;border:1px solid var(--border);color:var(--text2);border-radius:10px;padding:8px 12px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+  .book-pref{font-size:11px;color:var(--text2);margin:-2px 0 12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .book-pref select{border:1px solid var(--border);border-radius:6px;padding:2px 5px;font-size:11px;font-family:inherit;background:#fff}
+  .book-pref-hint{opacity:.8}
+  #bookModal .modal .hint{margin-top:-6px;margin-bottom:4px}
   .hidden{display:none!important}
 </style>
 </head>
@@ -284,11 +317,40 @@
   </header>
 
   <input type="file" id="fileInput" accept=".xls,.xlsx" class="hidden">
+  <input type="file" id="restoreInput" accept=".json,application/json" class="hidden">
+
+  <!-- 月份账本 -->
+  <div class="bookbar" id="bookbar">
+    <div class="book-left">
+      <span class="book-label">📒 月份账本</span>
+      <div class="book-tabs" id="bookTabs"></div>
+      <button class="btn-mini" id="btnNewBook" type="button">＋ 新建月份</button>
+    </div>
+    <div class="book-right">
+      <span class="book-mini-label">当前状态</span>
+      <div class="book-states" id="bookStates"></div>
+      <span class="book-sep"></span>
+      <button class="btn-mini" id="btnBackup" type="button" title="导出全部账本 JSON 备份">⬇ 备份</button>
+      <button class="btn-mini" id="btnRestore" type="button" title="从 JSON 备份恢复">⬆ 恢复</button>
+    </div>
+  </div>
+  <div class="book-hint hidden" id="bookHint"></div>
+  <div class="lock-bar hidden" id="lockBar">🔒 本账本已归档，为只读状态，防止工资结算后误改。
+    <button class="btn-mini" id="btnUnlock" type="button">解锁继续编辑</button>
+  </div>
+  <div class="book-pref">打开时默认进入：
+    <select id="openDefault">
+      <option value="current">当月</option>
+      <option value="last">上次打开的月份</option>
+      <option value="pending">待汇总月份</option>
+    </select>
+    <span class="book-pref-hint">· 删除员工只从当前月份移除，不影响其他月份；新增员工自动记入花名册。</span>
+  </div>
 
   <!-- 空状态 -->
   <div id="empty" class="drop-zone">
     <div class="big">导入「员工刷卡记录表」开始</div>
-    <div class="hint">支持 .xls / .xlsx，数据仅在本地浏览器处理，不会上传</div>
+    <div class="hint">支持 .xls / .xlsx，数据仅在本地浏览器处理，不会上传。<br>首次导入会记住员工花名册；之后每次打开网址就直接是当月考勤大表，不用再导入也能记录请假。</div>
     <button class="btn btn-primary">选择打卡记录文件</button>
   </div>
 
@@ -438,6 +500,19 @@
 </div>
 
 <!-- 添加员工弹窗 -->
+<!-- 新建月份账本弹窗 -->
+<div class="modal-mask" id="bookModal">
+  <div class="modal" style="width:400px">
+    <h3>新建月份账本</h3>
+    <div class="field"><label>年月</label><input type="month" id="bm_month"></div>
+    <div class="hint" style="font-size:12px;color:var(--text2);line-height:1.6">新建后自动带入员工花名册，可单独增删人员、提前记录请假，不影响其他月份。<br>发薪日不固定也没关系，账本状态由你手动切换。</div>
+    <div class="foot">
+      <button class="btn btn-ghost" id="bmCancel">取消</button>
+      <button class="btn btn-primary" id="bmOk">创建并进入</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-mask" id="empModal">
   <div class="modal">
     <h3>添加员工</h3>
@@ -542,7 +617,14 @@ let S = {
   restB: new Set(),     // B 组轮休日期 "M.D"（可手动调整，默认隔周）
   cDouble: false,       // C 组是否双休（false=单休每周日，true=双休周六+周日）
   hlColor: "#CCE8FB",   // 考勤总表悬浮高亮主色（考勤区，浅色，可在设置里切换）
-  hlColor2: "#DEE9F5"   // 统计列（出勤/请假/扣款等）悬浮高亮主题色，可与考勤区不同
+  hlColor2: "#DEE9F5",  // 统计列（出勤/请假/扣款等）悬浮高亮主题色，可与考勤区不同
+
+  // ===== 月份账本（多月份并存，各自独立） =====
+  roster: [],           // 全局员工花名册（首次导入后记住，跨月共用）：{id,name,department,isExternal,group,halfSalary,noPunch}
+  books: {},            // "2026-10" -> 该月账本快照（名单、打卡明细、勾选、核实、出差、节假日、轮休）
+  bookIndex: [],        // [{key,state}] state: recording 记录中 / pending 待汇总 / archived 已归档
+  bookKey: "",          // 当前打开的账本 "YYYY-MM"
+  openDefault: "current"// 打开时默认进入：current 当月 / last 上次 / pending 待汇总
 };
 
 // 考勤总表悬浮高亮配色（浅色=行列背景，中色=当前格，深色=边框/上下表头）
@@ -578,6 +660,174 @@ const PRESET_COLORS = [
 ];
 
 const KEY = "kaoqin_fakuan_v1";
+
+/* ================= 月份账本 =================
+   每个月一份独立账本：名单、打卡明细、手工勾选、核实、出差、节假日、轮休各自隔离。
+   扣款规则 / 员工花名册 / 标记 / 配色为全局共用，不随月份切换。
+   切换时把当前运行时状态打包回旧账本，再从目标账本展开到 S，现有判定与导出逻辑完全不用改。 */
+const BOOK_STATES = {
+  recording: {label:"记录中", cls:"st-recording"},
+  pending:   {label:"待汇总", cls:"st-pending"},
+  archived:  {label:"已归档", cls:"st-archived"}
+};
+let MIGRATED_NOTICE = "";
+
+function bookKey(y,m){ return y+"-"+String(m).padStart(2,"0"); }
+function bookLabel(key){ const p=String(key).split("-"); return (+p[0])+"年"+(+p[1])+"月"; }
+function bookParts(key){ const p=String(key).split("-"); return {y:+p[0], m:+p[1]}; }
+function nowKey(){ const d=new Date(); return bookKey(d.getFullYear(), d.getMonth()+1); }
+function nextMonthKey(){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+1); return bookKey(d.getFullYear(), d.getMonth()+1); }
+function curBookObj(){ return S.books[S.bookKey] || null; }
+function bookState(key){
+  const it = (S.bookIndex||[]).find(x=>x.key===key);
+  return it ? it.state : "recording";
+}
+function bookLocked(){ return bookState(S.bookKey)==="archived"; }
+
+function newBook(key){
+  const {y,m} = bookParts(key);
+  const suns = computeSundays(new Date(y, m-1, 1));
+  const restA=[], restB=[];
+  suns.forEach((d,i)=>{ if((i+1)%2===1) restA.push(dateKey(d)); else restB.push(dateKey(d)); });
+  return {
+    key, state:"recording",
+    names: (S.roster||[]).map(r=>r.name),  // 新建月份自动带入员工花名册
+    rosterSeeded: (S.roster||[]).length>0,// 名单是否已被花名册初始化/人工接管
+    punches:{}, hasPunches:false,
+    overrides:{}, halfOverrides:{}, attManual:{}, tripPlaces:{}, tripRemarks:{},
+    holidays:[], restA, restB, cDouble:false, restDays:[]
+  };
+}
+
+// 把当前运行时状态打包回当前账本（每次保存 / 切换前调用）
+function captureBook(){
+  if(!S.books || !S.bookKey) return;
+  const b = S.books[S.bookKey]; if(!b) return;
+  b.names = S.employees.map(e=>e.name);
+  if(S.employees.length) b.rosterSeeded = true;  // 名单已被人工接管，之后不再自动补齐
+  // 花名册只增不删：新增员工自动记住；删除员工只从当前月份移除，不影响其他月份
+  S.employees.forEach(e=>{
+    const attr = {id:e.id||"", name:e.name, department:e.department||"",
+      isExternal:!!e.isExternal, group:e.group||"",
+      halfSalary:e.halfSalary!=null?e.halfSalary:50, noPunch:!!e.noPunch};
+    const i = S.roster.findIndex(r=>r.name===e.name);
+    if(i<0) S.roster.push(attr); else S.roster[i] = attr;
+  });
+  b.punches = {};
+  S.employees.forEach(e=>{ if(e.dayTimes && Object.keys(e.dayTimes).length) b.punches[e.name] = e.dayTimes; });
+  if(Object.keys(b.punches).length) b.hasPunches = true;
+  b.overrides = S.overrides; b.halfOverrides = S.halfOverrides;
+  b.attManual = S.attManual; b.tripPlaces = S.tripPlaces; b.tripRemarks = S.tripRemarks;
+  b.holidays = [...S.holidays]; b.restA = [...S.restA]; b.restB = [...S.restB];
+  b.cDouble = !!S.cDouble; b.restDays = [...S.restDays];
+}
+
+// 从指定账本展开到运行时 S
+function applyBook(key){
+  if(!S.books[key]) S.books[key] = newBook(key);
+  const b = S.books[key];
+  // 空账本（例如全新启动时建的当月账本）首次进入时，自动从花名册补齐名单。
+  // 只要名单为空且该账本还没有任何手工记录/打卡数据，就补；已被人工删减过的名单不再动。
+  const untouched = !b.hasPunches && !Object.keys(b.punches||{}).length
+    && !Object.keys(b.overrides||{}).length && !Object.keys(b.attManual||{}).length;
+  if((!(b.names||[]).length) && (S.roster||[]).length && (untouched || !b.rosterSeeded)){
+    b.names = S.roster.map(r=>r.name); b.rosterSeeded = true;
+  }
+  const {y,m} = bookParts(key);
+  S.baseDate = new Date(y, m-1, 1);
+  S.sundays = computeSundays(S.baseDate);
+  S.employees = (b.names||[]).map(name=>{
+    const a = S.roster.find(r=>r.name===name) || {};
+    return {id:a.id||"", name, department:a.department||"",
+      dayTimes: (b.punches && b.punches[name]) ? {...b.punches[name]} : {},
+      isExternal:!!a.isExternal, group:a.group||"",
+      halfSalary:a.halfSalary!=null?a.halfSalary:50, noPunch:!!a.noPunch};
+  });
+  S.overrides = b.overrides||{}; S.halfOverrides = b.halfOverrides||{};
+  S.attManual = b.attManual||{}; S.tripPlaces = b.tripPlaces||{}; S.tripRemarks = b.tripRemarks||{};
+  S.holidays = new Set(b.holidays||[]);
+  S.restA = new Set(b.restA||[]); S.restB = new Set(b.restB||[]);
+  if(!S.restA.size && !S.restB.size){
+    S.sundays.forEach((d,i)=>{ if((i+1)%2===1) S.restA.add(dateKey(d)); else S.restB.add(dateKey(d)); });
+  }
+  S.cDouble = !!b.cDouble;
+  S.restDays = new Set(b.restDays||[]);
+  S.undoStack = [];   // 撤销栈不跨账本，避免误撤销到别的月份
+}
+
+function switchBook(key, silent){
+  if(!S.books || !S.bookIndex) return;
+  if(key===S.bookKey){ if(!silent) renderBookBar(); return; }
+  captureBook();
+  S.bookKey = key;
+  applyBook(key);
+  if(!S.bookIndex.some(x=>x.key===key)) S.bookIndex.push({key, state:"recording"});
+  savePersist();
+  if(!silent){ renderBookBar(); render(); }
+}
+
+function setBookState(state){
+  const it = S.bookIndex.find(x=>x.key===S.bookKey); if(it) it.state = state;
+  const b = curBookObj(); if(b) b.state = state;
+  savePersist(); renderBookBar();
+}
+
+function renderBookBar(){
+  const box = $("bookTabs"); if(!box) return;
+  const items = [...S.bookIndex].sort((a,b)=>String(a.key).localeCompare(String(b.key)));
+  box.innerHTML = items.map(it=>{
+    const st = BOOK_STATES[it.state] || BOOK_STATES.recording;
+    const on = it.key===S.bookKey ? " on" : "";
+    const dot = it.state==="pending" ? '<span class="pending-dot"></span>' : "";
+    return `<div class="book-tab${on}" data-book="${esc(it.key)}" title="${esc(bookLabel(it.key))} · ${esc(st.label)}">
+      <span class="bt-name">${esc(bookLabel(it.key))}</span><span class="bt-state ${st.cls}">${dot}${st.label}</span></div>`;
+  }).join("");
+  const states = $("bookStates");
+  if(states) states.innerHTML = Object.keys(BOOK_STATES).map(k=>
+    `<button type="button" class="bs-btn ${bookState(S.bookKey)===k?"on":""}" data-state="${k}">${BOOK_STATES[k].label}</button>`).join("");
+  const pend = items.filter(x=>x.state==="pending" && x.key!==S.bookKey);
+  const hint = $("bookHint");
+  if(hint){
+    if(pend.length){
+      hint.classList.remove("hidden");
+      hint.innerHTML = `🟠 有 <b>${pend.length}</b> 份账本待汇总（工资未发）：${pend.map(x=>esc(bookLabel(x.key))).join("、")} — 点上方标签即可切换，不影响当前 ${esc(bookLabel(S.bookKey))} 的记录。`;
+    } else hint.classList.add("hidden");
+  }
+  const lock = $("lockBar"); if(lock) lock.classList.toggle("hidden", !bookLocked());
+  const pref = $("openDefault"); if(pref) pref.value = S.openDefault || "current";
+}
+
+// 导出全部账本 JSON（可放网盘 / 换电脑时恢复）
+function exportBooks(){
+  savePersist();
+  const data = {v:2, exportedAt:new Date().toISOString(), app:"考勤统计"};
+  try{
+    const cur = JSON.parse(localStorage.getItem(KEY) || "{}");
+    Object.assign(data, cur);
+  }catch(e){}
+  const d = new Date();
+  const stamp = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "考勤账本备份_"+stamp+".json";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function importBooks(file){
+  const r = new FileReader();
+  r.onload = e=>{
+    try{
+      const d = JSON.parse(e.target.result);
+      if(!d.books || !d.bookIndex) throw new Error("不是有效的账本备份文件");
+      const n = Object.keys(d.books).length;
+      if(!confirm("恢复备份会覆盖当前全部账本与设置。\n备份含 "+n+" 个月份账本，确定继续？")) return;
+      localStorage.setItem(KEY, JSON.stringify(d));
+      location.reload();
+    }catch(err){ alert("恢复失败："+err.message); }
+  };
+  r.readAsText(file);
+}
 
 // 默认免打卡人员（高层，不打考勤卡，总表手动维护）。导入打卡记录时自动合并，始终置顶。
 const DEFAULT_NO_PUNCH = [
@@ -1108,6 +1358,7 @@ function pushUndo(label){
   if(S.undoStack.length>50) S.undoStack.shift();
 }
 function undo(){
+  if(bookLocked()){ alert("本账本已归档（只读），请先点顶部「解锁」再撤销。"); return; }
   if(!S.undoStack.length){ alert("没有可撤销的操作"); return; }
   const s = S.undoStack.pop();
   S.overrides = s.overrides;
@@ -1421,6 +1672,7 @@ th{background:#fafbfc;color:#7a828e;font-weight:600}</style></head><body>
 /* ================= 渲染 ================= */
 let currentTab = "all";
 function render(){
+  renderBookBar();
   if(!S.employees.length){ $("empty").classList.remove("hidden"); $("main").classList.add("hidden"); return; }
   $("empty").classList.add("hidden"); $("main").classList.remove("hidden");
 
@@ -2041,42 +2293,98 @@ function writeParamsUI(){
 
 /* ================= 持久化 ================= */
 function savePersist(){
+  if(!S.books || !S.bookKey) return;
+  captureBook();
   const data = {
+    v: 2,
     params: S.params,
-    empAttrs: S.employees.map(e=>({name:e.name, isExternal:e.isExternal, group:e.group, halfSalary:e.halfSalary, noPunch:e.noPunch})),
-    extraEmployees: S.employees.filter(e=>e.noPunch).map(e=>({id:e.id, name:e.name, department:e.department, isExternal:e.isExternal, group:e.group, halfSalary:e.halfSalary, noPunch:true, dayTimes:{}})),
-    overrides: S.overrides,
-    halfOverrides: S.halfOverrides,
+    roster: S.roster,
     attCols: S.attCols,
-    tripPlaces: S.tripPlaces,
-    tripRemarks: S.tripRemarks,
-    attManual: S.attManual,
     tripDeptFilter: S.tripDeptFilter,
-    holidays: [...S.holidays],
+    showTripRemark: S.showTripRemark,
     marks: S.marks,
-    restA: [...S.restA],
-    restB: [...S.restB],
-    cDouble: S.cDouble,
     hlColor: S.hlColor,
-    hlColor2: S.hlColor2
+    hlColor2: S.hlColor2,
+    openDefault: S.openDefault,
+    bookKey: S.bookKey,
+    bookIndex: S.bookIndex,
+    books: S.books
   };
-  try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
+  try{ localStorage.setItem(KEY, JSON.stringify(data)); }
+  catch(e){
+    if(!window.__quotaWarned){ window.__quotaWarned = true;
+      alert("浏览器本地缓存已满或不可写。请先点「⬇ 备份」导出 JSON，再删除不需要的旧月份账本。"); }
+  }
 }
 function loadPersist(){
-  try{ const s = localStorage.getItem(KEY); if(s) S.persist = JSON.parse(s); }catch(e){}
-  if(S.persist.attCols) S.attCols = {...getAttCols(), ...S.persist.attCols};
-  if(S.persist.tripPlaces) S.tripPlaces = S.persist.tripPlaces;
-  if(S.persist.tripRemarks) S.tripRemarks = S.persist.tripRemarks;
-  if(S.persist.attManual) S.attManual = S.persist.attManual;
-  if(S.persist.tripDeptFilter != null) S.tripDeptFilter = S.persist.tripDeptFilter;
-  if(S.persist.holidays) S.holidays = new Set(S.persist.holidays);
-  if(S.persist.marks && S.persist.marks.length) S.marks = S.persist.marks;
-  else if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
-  if(S.persist.restA != null) S.restA = new Set(S.persist.restA);
-  if(S.persist.restB != null) S.restB = new Set(S.persist.restB);
-  if(S.persist.cDouble != null) S.cDouble = !!S.persist.cDouble;
-  if(S.persist.hlColor) S.hlColor = S.persist.hlColor;
-  if(S.persist.hlColor2) S.hlColor2 = S.persist.hlColor2;
+  let raw = null;
+  try{ const s = localStorage.getItem(KEY); if(s) raw = JSON.parse(s); }catch(e){}
+  S.persist = raw || {};
+
+  if(raw && raw.v === 2){
+    S.params = raw.params || {};
+    S.roster = Array.isArray(raw.roster) ? raw.roster : [];
+    S.attCols = {...getAttCols(), ...(raw.attCols||{})};
+    S.tripDeptFilter = raw.tripDeptFilter || "";
+    S.showTripRemark = !!raw.showTripRemark;
+    S.marks = (raw.marks && raw.marks.length) ? raw.marks : DEFAULT_MARKS.map(m=>({...m}));
+    S.hlColor = raw.hlColor || "#CCE8FB";
+    S.hlColor2 = raw.hlColor2 || "#DEE9F5";
+    S.openDefault = raw.openDefault || "current";
+    S.books = raw.books || {};
+    S.bookIndex = Array.isArray(raw.bookIndex) ? raw.bookIndex : [];
+    S.bookKey = raw.bookKey || nowKey();
+  } else {
+    // 旧版缓存迁移：把设置与已勾记录搬到「当前月份」账本，不静默丢弃
+    const o = raw || {};
+    S.params = o.params || {};
+    S.roster = (o.empAttrs||[]).map(a=>({id:"", name:a.name, department:"",
+      isExternal:!!a.isExternal, group:a.group||"",
+      halfSalary:a.halfSalary!=null?a.halfSalary:50, noPunch:!!a.noPunch}));
+    (o.extraEmployees||[]).forEach(e=>{
+      if(!S.roster.some(r=>r.name===e.name)) S.roster.push({id:e.id||"", name:e.name,
+        department:e.department||"", isExternal:!!e.isExternal, group:e.group||"",
+        halfSalary:e.halfSalary!=null?e.halfSalary:50, noPunch:true});
+    });
+    S.attCols = {...getAttCols(), ...(o.attCols||{})};
+    S.tripDeptFilter = o.tripDeptFilter || "";
+    S.marks = (o.marks && o.marks.length) ? o.marks : DEFAULT_MARKS.map(m=>({...m}));
+    S.hlColor = o.hlColor || "#CCE8FB";
+    S.hlColor2 = o.hlColor2 || "#DEE9F5";
+    S.openDefault = "current";
+    S.books = {}; S.bookIndex = [];
+    const k = nowKey();
+    const b = newBook(k);
+    b.names = S.roster.map(r=>r.name);
+    b.rosterSeeded = true;
+    b.overrides = o.overrides||{}; b.halfOverrides = o.halfOverrides||{};
+    b.attManual = o.attManual||{}; b.tripPlaces = o.tripPlaces||{}; b.tripRemarks = o.tripRemarks||{};
+    b.holidays = o.holidays||[]; b.restA = o.restA||[]; b.restB = o.restB||[];
+    b.cDouble = !!o.cDouble;
+    S.books[k] = b;
+    S.bookIndex.push({key:k, state:"recording"});
+    S.bookKey = k;
+    if(raw && Object.keys(raw).length){
+      MIGRATED_NOTICE = "已把旧版本地数据迁移到「"+bookLabel(k)+"」账本：设置、手工勾选、核实、出差、节假日、轮休都保留了。\n\n如果旧数据其实属于别的月份，请用「＋ 新建月份」建对应账本，再导入那个月的打卡记录即可。";
+    }
+  }
+
+  // 当月账本一定存在（打开就有当月大表）
+  const nk = nowKey();
+  if(!S.books[nk]) S.books[nk] = newBook(nk);
+  if(!S.bookIndex.some(x=>x.key===nk)) S.bookIndex.push({key:nk, state:"recording"});
+  // 打开时默认进入哪个月
+  if(S.openDefault === "pending"){
+    const p = S.bookIndex.find(x=>x.state==="pending");
+    S.bookKey = p ? p.key : nk;
+  } else if(S.openDefault === "last"){
+    if(!S.books[S.bookKey]) S.bookKey = nk;
+  } else {
+    S.bookKey = nk;
+  }
+  // 补齐索引里缺失的账本
+  S.bookIndex.forEach(it=>{ if(!S.books[it.key]) S.books[it.key] = newBook(it.key); });
+  applyBook(S.bookKey);
 }
 
 /* ================= 导入 ================= */
@@ -2086,50 +2394,70 @@ function handleFile(file){
     try{
       const {employees, baseDate} = parseWorkbook(e.target.result);
       if(!employees.length){ alert("没有解析到员工数据，请确认是「员工刷卡记录表」。"); return; }
-      S.employees = employees;
+      // 按文件里的年月定位账本，绝不倒进当前打开的那个月
+      const key = bookKey(baseDate.getFullYear(), baseDate.getMonth()+1);
+      if(key !== S.bookKey){
+        const ok = confirm("检测到「"+bookLabel(key)+"」的打卡记录。\n\n是否切换到 "+bookLabel(key)+" 账本并导入？\n（当前 "+bookLabel(S.bookKey)+" 已记录的内容不会受影响）");
+        if(!ok) return;
+        switchBook(key, true);
+      }
+      if(bookLocked()){ alert(bookLabel(key)+" 账本已归档（只读），请先点顶部「解锁」再导入。"); return; }
+
+      // 保留本账本里提前登记的人员（手工添加的、免打卡高层），与导入名单合并
+      const before = S.employees.slice();
+      S.employees = employees.slice();
+      const known = new Set(S.employees.map(x=>x.name));
+      before.forEach(x=>{ if(!known.has(x.name)){ S.employees.push({...x, dayTimes:x.dayTimes||{}}); known.add(x.name); } });
+      DEFAULT_NO_PUNCH.forEach(ex=>{
+        if(!known.has(ex.name)){
+          S.employees.push({id:"", name:ex.name, department:ex.department, dayTimes:{},
+            isExternal:false, group:ex.group, halfSalary:50, noPunch:true});
+          known.add(ex.name);
+        }
+      });
+
       S.baseDate = baseDate;
       S.sundays = computeSundays(baseDate);
-      // A/B 组轮休：优先沿用本月已手动调整的（跨月则按隔周重新初始化）
+      // A/B 组轮休：沿用本账本已手动调整的；日期不属于本月则按本月周日隔周重建
       const sundayKeys = new Set(S.sundays.map(d=>dateKey(d)));
-      const pRA = S.persist.restA, pRB = S.persist.restB;
-      if(pRA != null && pRB != null && [...pRA, ...pRB].every(k=>sundayKeys.has(k))){
-        S.restA = new Set(pRA); S.restB = new Set(pRB);
-      } else {
+      const stale = [...S.restA].some(k=>!sundayKeys.has(k)) || [...S.restB].some(k=>!sundayKeys.has(k));
+      if(stale){
         S.restA = new Set(); S.restB = new Set();
         S.sundays.forEach((d,i)=>{ if((i+1)%2===1) S.restA.add(dateKey(d)); else S.restB.add(dateKey(d)); });
       }
-      S.overrides = S.persist.overrides || {};
-      S.halfOverrides = S.persist.halfOverrides || {};
-
-      // 合并免打卡人员（默认高层 + 之前手动添加的），不在打卡名单也始终保留、置顶
-      const extras = [...DEFAULT_NO_PUNCH, ...(S.persist.extraEmployees || [])];
-      for(const ex of extras){
-        if(!S.employees.some(e=>e.name===ex.name)){
-          S.employees.push({id:ex.id||"", name:ex.name, department:ex.department, dayTimes:{}, isExternal:ex.isExternal||false, group:ex.group||"", halfSalary:ex.halfSalary!=null?ex.halfSalary:0, noPunch:true});
-        }
-      }
+      // 手工勾选 / 核实 / 出差 / 节假日一概不清空 —— 导入只补打卡明细，手工记录优先级最高
 
       // 自动识别全体休息日（全员无打卡的日期）
       S.restDays = new Set();
-      const allDays = {};
-      for(const emp of S.employees) for(const day in emp.dayTimes) allDays[day]=true;
       for(let day=1; day<=31; day++){
         const d = dayToDate(day); if(d.getMonth()!==baseDate.getMonth()) continue;
         const anyPunch = S.employees.some(emp=>emp.dayTimes[day] && emp.dayTimes[day].length>0);
         if(!anyPunch) S.restDays.add(dateKey(d));
       }
 
-      // 应用持久化的外勤/组别/半天工资/免打卡
-      const attrs = S.persist.empAttrs || [];
+      // 应用花名册属性；打卡表里出现的新人自动记入花名册（下次打开/新建月份直接带入）
       for(const emp of S.employees){
-        const a = attrs.find(x=>x.name===emp.name);
-        if(a){ emp.isExternal = a.isExternal; emp.group = a.group; emp.halfSalary = a.halfSalary!=null ? a.halfSalary : 50; if(a.noPunch) emp.noPunch = true; }
-        else if(!emp.noPunch){ emp.isExternal = false; emp.group = ""; emp.halfSalary = 50; }
+        const a = S.roster.find(x=>x.name===emp.name);
+        if(a){
+          emp.isExternal = !!a.isExternal; emp.group = a.group||"";
+          emp.halfSalary = a.halfSalary!=null?a.halfSalary:50;
+          if(a.noPunch) emp.noPunch = true;
+          if(a.department) emp.department = a.department;
+          if(a.id) emp.id = a.id;
+        } else {
+          emp.isExternal = false; emp.group = ""; emp.halfSalary = 50;
+        }
       }
+      S.employees.forEach(emp=>{
+        if(!S.roster.some(r=>r.name===emp.name)) S.roster.push({id:emp.id||"", name:emp.name,
+          department:emp.department||"", isExternal:!!emp.isExternal, group:emp.group||"",
+          halfSalary:emp.halfSalary!=null?emp.halfSalary:50, noPunch:!!emp.noPunch});
+      });
       autoDetectExternal();
       guessGroups();
       writeParamsUI();
-      render();
+      const b = curBookObj(); if(b){ b.hasPunches = true; b.rosterSeeded = true; }
+      render();   // 内部 savePersist → captureBook，打卡明细随本账本保存
     }catch(err){ alert("解析失败："+err.message); }
   };
   reader.readAsArrayBuffer(file);
@@ -2188,6 +2516,53 @@ function exportResult(){
 
 /* ================= 事件绑定 ================= */
 function bindEvents(){
+  /* ---------- 月份账本 ---------- */
+  $("bookTabs").addEventListener("click", e=>{
+    const t = e.target.closest("[data-book]"); if(!t) return;
+    switchBook(t.dataset.book);
+  });
+  $("bookStates").addEventListener("click", e=>{
+    const b = e.target.closest("[data-state]"); if(!b) return;
+    const st = b.dataset.state;
+    if(st==="archived" && !confirm("归档后「"+bookLabel(S.bookKey)+"」变为只读（工资已发，防止误改）。\n之后随时可点「记录中 / 待汇总」解锁。\n确定归档吗？")) return;
+    setBookState(st);
+  });
+  $("btnUnlock").onclick = ()=> setBookState("pending");
+  $("btnNewBook").onclick = ()=>{ $("bm_month").value = nextMonthKey(); $("bookModal").classList.add("show"); };
+  $("bmCancel").onclick = ()=> $("bookModal").classList.remove("show");
+  $("bookModal").onclick = e=>{ if(e.target.id==="bookModal") $("bookModal").classList.remove("show"); };
+  $("bmOk").onclick = ()=>{
+    const v = $("bm_month").value;
+    if(!/^\d{4}-\d{2}$/.test(v)){ alert("请选择年月"); return; }
+    if(S.books[v]){ switchBook(v); }
+    else { S.books[v] = newBook(v); S.bookIndex.push({key:v, state:"recording"}); switchBook(v); }
+    $("bookModal").classList.remove("show");
+  };
+  $("openDefault").onchange = e=>{ S.openDefault = e.target.value; savePersist(); };
+  $("btnBackup").onclick = exportBooks;
+  $("btnRestore").onclick = ()=> $("restoreInput").click();
+  $("restoreInput").onchange = e=>{ if(e.target.files[0]) importBooks(e.target.files[0]); e.target.value=""; };
+
+  /* ---------- 归档账本只读守卫（捕获阶段拦截编辑，导出与查看不受影响） ---------- */
+  const LOCK_SEL = [
+    ".settings-col input", ".settings-col select", ".settings-col .switch", ".settings-col .btn-mini",
+    ".settings-col .day", "#restPicker button", "#cModeBtn", "#btnAddEmp", "#btnGuess", "#btnAddMark",
+    "#hlSwatches .hl-sw", "#hlSwatches2 .hl-sw", "#markList input", "#markList button",
+    "td.c.editable", "#attToggles input", "#btnSyncToDetail",
+    "#detailList .btn-verify", "#detailList .btn-undo", "#detailList input",
+    "#tripCard input", "#tripCard button", "#tripCard select", "#tripCard .day"
+  ].join(",");
+  function lockGuard(e){
+    if(!bookLocked()) return;
+    const t = e.target;
+    if(!t || !t.closest || !t.closest(LOCK_SEL)) return;
+    e.preventDefault(); e.stopPropagation();
+    if(ev_warn()) alert("「"+bookLabel(S.bookKey)+"」账本已归档，为只读状态。\n如需修改，请点上方「解锁继续编辑」。");
+  }
+  let _lastWarn = 0;
+  function ev_warn(){ const n = Date.now(); if(n-_lastWarn<1200) return false; _lastWarn=n; return true; }
+  ["click","change","input"].forEach(ev=> $("main").addEventListener(ev, lockGuard, true));
+
   $("btnImport").onclick = ()=> $("fileInput").click();
   $("empty").onclick = e=>{ if(e.target.id==="empty"||e.target.closest("#empty")) $("fileInput").click(); };
   $("fileInput").onchange = e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=""; };
@@ -2680,12 +3055,12 @@ function bindEvents(){
 }
 
 /* ================= 初始化 ================= */
-loadPersist();
-if(S.persist.params) S.params = S.persist.params;
+loadPersist();          // 读缓存 / 迁移老数据 / 展开默认月份账本
 writeParamsUI();
 readParams();
 bindEvents();
-render();
+render();                // 内部含 renderBookBar + savePersist
+if(MIGRATED_NOTICE) setTimeout(()=>alert(MIGRATED_NOTICE), 350);
 </script>
 </body>
 </html>
