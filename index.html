@@ -959,7 +959,7 @@ function renderBookBar(){
 // 导出全部账本 JSON（可放网盘 / 换电脑时恢复）
 function exportBooks(){
   savePersist();
-  const data = {v:4, exportedAt:new Date().toISOString(), app:"考勤统计"};
+  const data = {v:5, exportedAt:new Date().toISOString(), app:"考勤统计"};
   try{
     const cur = JSON.parse(localStorage.getItem(KEY) || "{}");
     Object.assign(data, cur);
@@ -2612,7 +2612,7 @@ function savePersist(){
   if(!S.books || !S.bookKey) return;
   captureBook();
   const data = {
-    v: 4,
+    v: 5,
     params: S.params,
     roster: S.roster,
     attCols: S.attCols,
@@ -2650,16 +2650,29 @@ function loadPersist(){
     raw.v = 3;
   }
 
-  // v3 → v4 一次性迁移：用户确认「刘浩」属于 A 组（旧默认名单里他没分组）。
-  // 只补空组别；如果用户后来手动给刘浩设过别的组，一律不动。
-  if(raw && raw.v === 3){
-    const fixLiuHao = e=>{ if(e && e.name === "刘浩" && !e.group) e.group = "A"; };
-    (raw.roster||[]).forEach(fixLiuHao);
-    Object.keys(raw.books||{}).forEach(k=>{ (raw.books[k].employees||[]).forEach(fixLiuHao); });
-    raw.v = 4;
+  // v3 / v4 → v5 一次性修正：用户明确「刘浩是 A 组」。
+  // 旧版可能把他留空，也可能按「10 月周日全休」推算/手动设成 C、D、B 组，
+  // 所以这里无条件改回 A（花名册 + 每个月份账本里的员工属性一起改）。
+  // 只跑一次：保存后版本号写 5，之后用户在员工管理里手动改的组别一律保留。
+  if(raw && (raw.v === 3 || raw.v === 4)){
+    const fixLiuHao = e=>{ if(e && e.name === "刘浩") e.group = "A"; };
+    if(!Array.isArray(raw.roster)) raw.roster = [];
+    raw.roster.forEach(fixLiuHao);
+    // 老版本花名册可能只有 6 位免打卡高层，把内置 26 人里缺的补齐（已有条目不覆盖）
+    const seed = defaultRoster();
+    seed.forEach(d=>{ if(!raw.roster.some(r=>r && r.name===d.name)) raw.roster.push({...d}); });
+    Object.keys(raw.books||{}).forEach(k=>{
+      const b = raw.books[k]; if(!b) return;
+      (b.employees||[]).forEach(fixLiuHao);
+      // 只给「还没导入打卡」的月份补齐名单；已汇总月份不动，避免凭空补出缺勤
+      if(b.hasPunches) return;
+      if(!Array.isArray(b.names)) b.names = [];
+      seed.forEach(d=>{ if(b.names.indexOf(d.name)<0) b.names.push(d.name); });
+    });
+    raw.v = 5;
   }
 
-  if(raw && (raw.v === 4 || raw.v === 3 || raw.v === 2)){
+  if(raw && (raw.v === 5 || raw.v === 4 || raw.v === 3 || raw.v === 2)){
     S.params = raw.params || {};
     S.roster = Array.isArray(raw.roster) ? raw.roster : [];
     S.attCols = {...getAttCols(), ...(raw.attCols||{})};
