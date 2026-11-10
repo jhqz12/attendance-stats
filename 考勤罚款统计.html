@@ -43,6 +43,13 @@
   #empty .hint{margin:18px 0;font-size:13px}
   .drop-zone{cursor:pointer}
   .drop-zone.drag-over{border-color:var(--blue);background:#eef4ff;color:var(--blue)}
+  #empty{cursor:default}
+  .empty-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:6px 0}
+  /* 平时记录阶段：状态条 + 罚款明细待导入提示 */
+  .phase-banner{grid-column:1/-1;background:var(--orange-soft);border:1px solid #f2d9ae;border-radius:12px;padding:12px 16px;font-size:13px;line-height:1.8;color:#8a5a12}
+  .pending-tip{background:var(--blue-soft);border:1px dashed #bcd0f5;border-radius:10px;padding:16px 20px;font-size:13px;line-height:1.9;color:#3b4a63;text-align:left}
+  #detailCard.waiting-punches .tabs{display:none}
+  .sync-btn[disabled]{opacity:.5;cursor:not-allowed}
 
   /* 概览条 */
   .statbar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
@@ -55,6 +62,70 @@
   .layout{display:grid;grid-template-columns:480px 1fr;gap:16px;align-items:start}
   @media(max-width:1180px){.layout{grid-template-columns:420px 1fr}}
   @media(max-width:900px){.layout{grid-template-columns:1fr}}
+
+  /* ===== 按阶段排版 =====
+     平时记录：全宽聚焦当月总表，出差在下，罚款明细最后，左栏设置默认收起；
+     月底汇总：恢复原两栏，罚款明细在前，考勤总表放最后。 */
+  .result-col{display:flex;flex-direction:column}
+  .result-col > *{order:9}
+  .result-col #toc{order:0}
+  .result-col #summaryGrid{order:1}
+  .result-col #summaryCard{order:2}
+  #main.phase-recording .layout{grid-template-columns:1fr}
+  #main.phase-recording .settings-col{display:none}
+  #main.phase-recording.settings-open .layout{grid-template-columns:480px 1fr}
+  #main.phase-recording.settings-open .settings-col{display:block}
+  #main.phase-recording #attCard{order:2}
+  #main.phase-recording #tripCard{order:3}
+  #main.phase-recording #detailCard{order:4}
+  #main.phase-done #detailCard{order:2}
+  #main.phase-done #tripCard{order:3}
+  #main.phase-done #attCard{order:4}
+  #main.phase-recording #toc .toc-btn[data-target="attCard"]{order:1}
+  #main.phase-recording #toc .toc-btn[data-target="tripCard"]{order:2}
+  #main.phase-recording #toc .toc-btn[data-target="detailCard"]{order:3}
+  #main.phase-done #toc .toc-btn[data-target="detailCard"]{order:1}
+  #main.phase-done #toc .toc-btn[data-target="tripCard"]{order:2}
+  #main.phase-done #toc .toc-btn[data-target="attCard"]{order:3}
+  @media(max-width:900px){#main.phase-recording.settings-open .layout{grid-template-columns:1fr}}
+
+  /* 平时记录阶段：总表放大、铺满视口，方便逐格点选 */
+  #main.phase-recording .att-table{font-size:13px;line-height:1.45}
+  #main.phase-recording .att-table th,#main.phase-recording .att-table td{padding:5px 4px}
+  #main.phase-recording .att-table td.c{width:19px;min-width:19px;font-size:13px}
+  #main.phase-recording .att-table td.stat{font-size:13px}
+  #main.phase-recording .att-table .name{width:80px;font-size:13px}
+  #main.phase-recording .att-table .idx{width:34px}
+  #main.phase-recording .att-table .half{font-size:10px}
+  #main.phase-recording .att-table th.att-title{font-size:15px}
+
+  /* 一键签到：直接做在日期表头上，点一下全员签到、再点一下取消，不额外占工具条 */
+  .att-table th.sign-day{cursor:pointer;user-select:none;position:relative}
+  .att-table th.sign-day:hover{background:#dff5e7;color:#0d8a44;outline:1px solid var(--green)}
+  .att-table th.sign-day.signed{background:#e8f8ee;color:#0d8a44}
+  .att-table th.sign-day .sign-tick{font-style:normal;font-size:9px;color:var(--green);margin-left:1px;vertical-align:top;font-weight:700}
+  .att-title-tip{font-size:11px;font-weight:500;color:var(--text2);letter-spacing:0;margin-left:10px}
+
+  /* ===== 记录阶段极简视图：一打开就是当月总表，其余区块不占首屏 ===== */
+  body.phase-recording .wrap{max-width:100%;padding:10px 14px 40px}
+  body.phase-recording header{padding:0;margin-bottom:6px}
+  body.phase-recording header h1,body.phase-recording header .sub{display:none}
+  body.phase-recording header .actions{gap:6px}
+  body.phase-recording header .actions .btn{padding:5px 10px;font-size:12px}
+  body.phase-recording #bookbar,body.phase-recording .book-pref,body.phase-recording #bookHint{display:none}
+  body.phase-recording.books-open #bookbar{display:flex}
+  body.phase-recording.books-open .book-pref{display:flex}
+  body.phase-recording.books-open #bookHint:not(.hidden){display:block}
+  body.phase-recording #statbar,body.phase-recording #summaryGrid,body.phase-recording #summaryCard,
+  body.phase-recording #detailCard,body.phase-recording #attCard>h2,body.phase-recording #attSyncBar{display:none}
+  body.phase-recording #toc{padding:6px 10px;margin-bottom:8px;top:6px}
+  body.phase-recording #toc .toc-btn[data-target="summaryGrid"],
+  body.phase-recording #toc .toc-btn[data-target="detailCard"]{display:none}
+  body.phase-recording #attCard{padding:10px;margin-bottom:10px}
+  body.phase-recording .col-toggles{margin-bottom:6px}
+  /* 记录阶段设置栏只留总表 / 出差相关；迟到、罚款等判定参数导入打卡后再出现 */
+  #main.phase-recording .fine-only{display:none}
+
   /* 左侧设置栏：悬浮跟随，滚动时始终可见，内容超高时栏内可滚动 */
   .settings-col{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow-y:auto;padding-right:2px;scrollbar-width:thin}
   .settings-col::-webkit-scrollbar{width:6px}
@@ -282,6 +353,8 @@
   .book-tab .bt-name{font-weight:700;color:var(--text)}
   .book-tab.on .bt-name{color:var(--blue)}
   .book-tab .bt-state{font-size:11px;padding:1px 6px;border-radius:6px;white-space:nowrap}
+  .book-tab .bt-del{border:none;background:transparent;color:#b9c0c9;font-size:15px;line-height:1;padding:1px 3px;margin-left:1px;cursor:pointer;font-family:inherit;border-radius:5px}
+  .book-tab .bt-del:hover{color:#d33;background:#ffecec}
   .st-recording{background:#e8f2ff;color:#1a73e8}
   .st-pending{background:#fff0dc;color:#c47f00}
   .st-archived{background:#eef0f3;color:#6b7280}
@@ -309,7 +382,9 @@
       <div class="sub">导入打卡记录 · 自动判定 · 人工核实 · 导出考勤结果</div>
     </div>
     <div class="actions">
+      <button class="btn btn-ghost hidden" id="btnBooks" type="button">📒 月份 / 备份</button>
       <button class="btn btn-ghost" id="btnImport">导入打卡记录</button>
+      <button class="btn btn-ghost hidden" id="btnSettings" type="button">⚙ 展开设置</button>
       <button class="btn btn-ghost" id="btnUndo">↶ 撤销</button>
       <button class="btn btn-primary" id="btnExportCenter" disabled>导出中心</button>
       <button class="btn btn-ghost" id="btnExport" disabled>导出完整统计</button>
@@ -344,14 +419,18 @@
       <option value="last">上次打开的月份</option>
       <option value="pending">待汇总月份</option>
     </select>
-    <span class="book-pref-hint">· 删除员工只从当前月份移除，不影响其他月份；新增员工自动记入花名册。</span>
+    <span class="book-pref-hint">· 删除员工只从当前月份移除；新增员工自动记入花名册。· 月份标签右侧「×」删除整月账本（不可逆，删前请先「⬇ 备份」）。</span>
   </div>
 
-  <!-- 空状态 -->
+  <!-- 空状态：平时记录 / 月底汇总 两个入口 -->
   <div id="empty" class="drop-zone">
-    <div class="big">导入「员工刷卡记录表」开始</div>
-    <div class="hint">支持 .xls / .xlsx，数据仅在本地浏览器处理，不会上传。<br>首次导入会记住员工花名册；之后每次打开网址就直接是当月考勤大表，不用再导入也能记录请假。</div>
-    <button class="btn btn-primary">选择打卡记录文件</button>
+    <div class="big">今天有人请假、出差？直接开始记录，不用先导入打卡表</div>
+    <div class="hint">具体几点几分迟到、哪天缺勤，只有「员工刷卡记录」里才有，人工没法随时登记；<br>所以罚款明细留到月底导入打卡表后自动汇总，平时记的内容会自动保留、不被覆盖。</div>
+    <div class="empty-actions">
+      <button class="btn btn-primary" id="btnStartRecord" type="button">✎ 直接开始记录（不导入）</button>
+      <button class="btn btn-ghost" id="btnEmptyImport" type="button">⬆ 导入员工刷卡记录</button>
+    </div>
+    <div class="hint" style="font-size:12px;margin-bottom:0">首次使用：点左边按钮进入后，在「员工管理」里添加人员就能记请假/出差；也可以把 .xls / .xlsx 拖到本页直接导入。</div>
   </div>
 
   <!-- 主界面 -->
@@ -361,8 +440,8 @@
     <div class="layout">
       <!-- 左栏：设置（悬浮跟随） -->
       <div class="settings-col">
-        <div class="card">
-          <h2>参数设置 <span class="tag">修改后自动重算</span></h2>
+        <div class="card fine-only">
+          <h2>参数设置 <span class="tag">导入打卡记录后才需要</span></h2>
 
           <div class="param-sep">上午缺勤 / 迟到规则</div>
           <div class="param-row"><label>早上打卡截止</label><input type="time" id="p_morning" value="09:00"></div>
@@ -407,6 +486,7 @@
           <div class="param-row"><label>B 组休</label><span id="bRest" style="color:var(--green);font-weight:600"></span></div>
           <div class="param-row"><label>C 组</label><button type="button" class="btn-mini" id="cModeBtn">单休（每周日）</button></div>
           <div class="param-row"><label>D 组</label><span style="color:var(--text2)">不休</span></div>
+          <button type="button" class="btn-mini" id="btnSwapGroups" style="margin-top:10px" title="把员工管理里 A 组与 B 组的人员名单整体对调（不改轮休日期），可撤销">⇄ 调换 A / B 组人员</button>
         </div>
 
         <div class="card">
@@ -446,31 +526,19 @@
         </div>
       </div>
 
-      <!-- 右栏：结果 -->
-      <div>
+      <!-- 右栏：结果（按阶段用 CSS order 重排，不动 DOM 结构） -->
+      <div id="resultCol" class="result-col">
         <nav class="toc" id="toc">
           <span class="toc-label">📑 目录</span>
           <button class="toc-btn" data-target="summaryGrid">📊 概览</button>
-          <button class="toc-btn" data-target="detailCard">💰 罚款明细</button>
           <button class="toc-btn" data-target="tripCard">✈️ 出差登记</button>
           <button class="toc-btn" data-target="attCard">📋 考勤总表</button>
+          <button class="toc-btn" data-target="detailCard">💰 罚款明细</button>
         </nav>
 
         <div class="summary-grid" id="summaryGrid"></div>
 
-        <div class="card" id="detailCard">
-          <h2>罚款明细 <span class="tag">初版自动算出 → 核实列下拉订正 → 导出即最终版</span></h2>
-          <div class="tabs" id="tabs">
-            <button class="tab active" data-tab="all">全部</button>
-            <button class="tab" data-tab="late">迟到</button>
-            <button class="tab" data-tab="early">早退</button>
-            <button class="tab" data-tab="nopunch">缺勤半天</button>
-            <button class="tab" data-tab="absent">全天缺勤</button>
-            <button class="tab" data-tab="verified">已核实</button>
-          </div>
-          <div id="detailList"></div>
-        </div>
-
+        <!-- 平时随时记录：出差登记 / 考勤总表放在首屏 -->
         <div class="card" id="tripCard">
           <h2>出差登记表
             <span class="tag"><span id="tripMonth"></span> · 手动登记出差自动联动罚款明细免罚</span>
@@ -487,12 +555,26 @@
 
         <div class="card" id="attCard">
           <h2>考勤总表 <span class="tag" id="attLegend"></span></h2>
-          <div class="att-sync-bar">
+          <div class="att-sync-bar" id="attSyncBar">
             <button class="sync-btn" id="btnSyncToDetail">⇅ 同步到罚款明细</button>
             <span class="sync-hint">总表里的手动修改不会自动回写罚款明细，确认无误后点这里同步</span>
           </div>
           <div class="col-toggles" id="attToggles"></div>
           <div class="table-wrap" id="attWrap"></div>
+        </div>
+
+        <!-- 罚款明细：只有导入刷卡记录后才知道几时几刻、哪天缺勤，所以放在最后 -->
+        <div class="card" id="detailCard">
+          <h2>罚款明细 <span class="tag">导入刷卡记录后自动算出 → 核实列下拉订正 → 导出即最终版</span></h2>
+          <div class="tabs" id="tabs">
+            <button class="tab active" data-tab="all">全部</button>
+            <button class="tab" data-tab="late">迟到</button>
+            <button class="tab" data-tab="early">早退</button>
+            <button class="tab" data-tab="nopunch">缺勤半天</button>
+            <button class="tab" data-tab="absent">全天缺勤</button>
+            <button class="tab" data-tab="verified">已核实</button>
+          </div>
+          <div id="detailList"></div>
         </div>
       </div>
     </div>
@@ -609,6 +691,7 @@ let S = {
   tripPlaces: {},       // 出差地: "name" -> 地点
   tripRemarks: {},      // 出差备注: "name" -> 备注
   attManual: {},        // 免打卡人员手动考勤: "name|M.D" -> {am,pm}
+  signDays: new Set(),  // 已执行「一键签到」的日期 "M.D"（表头高亮用，随月份账本隔离）
   showTripRemark: false,// 出差登记表备注列是否显示
   tripDeptFilter: "",   // 出差登记表部门筛选
   holidays: new Set(),  // 手动设置的节假日（法定假期等）"M/D"，考勤总表显示黄色圆圈
@@ -678,6 +761,16 @@ function bookParts(key){ const p=String(key).split("-"); return {y:+p[0], m:+p[1
 function nowKey(){ const d=new Date(); return bookKey(d.getFullYear(), d.getMonth()+1); }
 function nextMonthKey(){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+1); return bookKey(d.getFullYear(), d.getMonth()+1); }
 function curBookObj(){ return S.books[S.bookKey] || null; }
+
+// 当前月份是否已经导入过「员工刷卡记录」：
+// 未导入 = 平时记录阶段（只记请假/出差），已导入 = 月底汇总阶段（才能算迟到/缺勤/罚款）。
+// 没有打卡明细就不知道几时几刻、哪天缺勤，绝不能凭空判定。
+function bookHasPunches(){
+  const b = curBookObj(); if(!b) return false;
+  if(b.hasPunches) return true;
+  const p = b.punches || {};
+  return Object.keys(p).some(n => p[n] && Object.keys(p[n]).length > 0);
+}
 function bookState(key){
   const it = (S.bookIndex||[]).find(x=>x.key===key);
   return it ? it.state : "recording";
@@ -687,6 +780,7 @@ function bookLocked(){ return bookState(S.bookKey)==="archived"; }
 function newBook(key){
   const {y,m} = bookParts(key);
   const suns = computeSundays(new Date(y, m-1, 1));
+  // 默认轮休：A 组休第 1/3/5…个周日，B 组休第 2/4…个周日（用户原本的设定，不改）
   const restA=[], restB=[];
   suns.forEach((d,i)=>{ if((i+1)%2===1) restA.push(dateKey(d)); else restB.push(dateKey(d)); });
   return {
@@ -695,7 +789,7 @@ function newBook(key){
     rosterSeeded: (S.roster||[]).length>0,// 名单是否已被花名册初始化/人工接管
     punches:{}, hasPunches:false,
     overrides:{}, halfOverrides:{}, attManual:{}, tripPlaces:{}, tripRemarks:{},
-    holidays:[], restA, restB, cDouble:false, restDays:[]
+    holidays:[], restA, restB, cDouble:false, restDays:[], signDays:[]
   };
 }
 
@@ -719,7 +813,7 @@ function captureBook(){
   b.overrides = S.overrides; b.halfOverrides = S.halfOverrides;
   b.attManual = S.attManual; b.tripPlaces = S.tripPlaces; b.tripRemarks = S.tripRemarks;
   b.holidays = [...S.holidays]; b.restA = [...S.restA]; b.restB = [...S.restB];
-  b.cDouble = !!S.cDouble; b.restDays = [...S.restDays];
+  b.cDouble = !!S.cDouble; b.restDays = [...S.restDays]; b.signDays = [...(S.signDays||[])];
 }
 
 // 从指定账本展开到运行时 S
@@ -752,7 +846,19 @@ function applyBook(key){
   }
   S.cDouble = !!b.cDouble;
   S.restDays = new Set(b.restDays||[]);
+  S.signDays = new Set(b.signDays||[]);
   S.undoStack = [];   // 撤销栈不跨账本，避免误撤销到别的月份
+}
+
+// 调换员工管理里 A / B 两组的人员名单（用户确认默认名单设反）。
+// 只换人，不改「A 休哪几个周日」的轮休设定；可撤销。
+function swapGroupRoster(){
+  pushUndo("调换 A/B 组人员");
+  const flip = e=>{ if(e.group==="A") e.group="B"; else if(e.group==="B") e.group="A"; };
+  (S.roster||[]).forEach(flip);
+  (S.employees||[]).forEach(flip);
+  savePersist();
+  render();
 }
 
 function switchBook(key, silent){
@@ -772,6 +878,58 @@ function setBookState(state){
   savePersist(); renderBookBar();
 }
 
+/* ---------- 删除月份账本 ----------
+   删除是整月数据一起没了，所以：
+   ① 「×」删除前必须二次确认，并提醒先备份；
+   ② 备份完成后只询问清理「已归档」月份，记录中 / 待汇总的一律不动；
+   ③ 删掉当前正在看的月份时自动切到当月（必要时重建），页面不会变空白。 */
+function removeBook(key){
+  if(!S.books || !S.books[key]) return false;
+  const wasCurrent = key === S.bookKey;
+  delete S.books[key];
+  S.bookIndex = (S.bookIndex||[]).filter(x=>x.key !== key);
+  if(wasCurrent){
+    const nk = nowKey();
+    if(!S.books[nk]){ S.books[nk] = newBook(nk); S.bookIndex.push({key:nk, state:"recording"}); }
+    S.bookKey = nk;
+    applyBook(nk);
+  }
+  S.undoStack = [];   // 撤销栈不跨账本，删掉月份后一并清空
+  return true;
+}
+function deleteBook(key){
+  if(!S.books[key]){ alert("找不到「"+bookLabel(key)+"」账本"); return false; }
+  const st = BOOK_STATES[bookState(key)] || BOOK_STATES.recording;
+  const extra = st.label === "已归档"
+    ? "\n\n⚠️ 这份账本是「已归档」状态（工资已结算），删除后将无法再查账。" : "";
+  const curTip = key === S.bookKey
+    ? "\n\n（这是当前打开的月份：删除后会自动回到当月的空白账本，不是退出页面。）" : "";
+  const msg = "⚠️ 确定删除「"+bookLabel(key)+"」这个月份账本吗？\n\n"
+    + "该月的打卡明细、请假 / 出差登记、一键签到、核实记录会一起删除，且无法撤销。"
+    + extra + curTip
+    + "\n\n建议先点「⬇ 备份」导出 JSON 保存好，之后可用「⬆ 恢复」找回。\n\n"
+    + "点「确定」继续删除，点「取消」保留。";
+  if(!confirm(msg)) return false;
+  if(!removeBook(key)) return false;
+  savePersist(); render();
+  return true;
+}
+// 备份导出成功后询问：已归档月份的数据已在刚下载的 JSON 里，可从本地缓存清掉腾空间
+function offerCleanArchived(){
+  const keys = (S.bookIndex||[]).filter(x=>x.state==="archived").map(x=>x.key);
+  if(!keys.length) return;
+  const msg = "✅ 备份文件已导出。\n\n检测到 "+keys.length+" 份「已归档」月份："
+    + keys.map(bookLabel).join("、")
+    + "\n\n请先确认 JSON 备份文件已下载成功。这些月份的数据都在备份里，随时可用「⬆ 恢复」找回。"
+    + "\n\n要从本地缓存里删除它们吗？（「记录中 / 待汇总」的月份不受影响）\n\n"
+    + "点「确定」删除这些已归档月份，点「取消」全部保留。";
+  if(!confirm(msg)) return;
+  let n = 0;
+  keys.forEach(k=>{ if(removeBook(k)) n++; });
+  savePersist(); render();
+  alert("已删除 "+n+" 份已归档月份账本。需要查账时，用「⬆ 恢复」导入刚才的备份即可。");
+}
+
 function renderBookBar(){
   const box = $("bookTabs"); if(!box) return;
   const items = [...S.bookIndex].sort((a,b)=>String(a.key).localeCompare(String(b.key)));
@@ -779,8 +937,9 @@ function renderBookBar(){
     const st = BOOK_STATES[it.state] || BOOK_STATES.recording;
     const on = it.key===S.bookKey ? " on" : "";
     const dot = it.state==="pending" ? '<span class="pending-dot"></span>' : "";
-    return `<div class="book-tab${on}" data-book="${esc(it.key)}" title="${esc(bookLabel(it.key))} · ${esc(st.label)}">
-      <span class="bt-name">${esc(bookLabel(it.key))}</span><span class="bt-state ${st.cls}">${dot}${st.label}</span></div>`;
+    return `<div class="book-tab${on}" data-book="${esc(it.key)}" title="${esc(bookLabel(it.key))} · ${esc(st.label)}（点标签切换，点右侧 × 删除该月份）">
+      <span class="bt-name">${esc(bookLabel(it.key))}</span><span class="bt-state ${st.cls}">${dot}${st.label}</span>
+      <button type="button" class="bt-del" data-del="${esc(it.key)}" title="删除 ${esc(bookLabel(it.key))} 账本">×</button></div>`;
   }).join("");
   const states = $("bookStates");
   if(states) states.innerHTML = Object.keys(BOOK_STATES).map(k=>
@@ -800,7 +959,7 @@ function renderBookBar(){
 // 导出全部账本 JSON（可放网盘 / 换电脑时恢复）
 function exportBooks(){
   savePersist();
-  const data = {v:2, exportedAt:new Date().toISOString(), app:"考勤统计"};
+  const data = {v:4, exportedAt:new Date().toISOString(), app:"考勤统计"};
   try{
     const cur = JSON.parse(localStorage.getItem(KEY) || "{}");
     Object.assign(data, cur);
@@ -813,6 +972,7 @@ function exportBooks(){
   a.download = "考勤账本备份_"+stamp+".json";
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  setTimeout(offerCleanArchived, 800);   // 下载完成后询问是否清理已归档月份
 }
 function importBooks(file){
   const r = new FileReader();
@@ -838,6 +998,41 @@ const DEFAULT_NO_PUNCH = [
   {name:"张秀龙", department:"高层", group:"C"},
   {name:"刘荣敏", department:"高层", group:"C"}
 ];
+
+/* 内置默认花名册：来自用户已导入过的「员工刷卡记录」（2026-10），共 26 人
+   = 6 位免打卡高层 + 20 位普通员工（工号 / 部门 / 休息组）。
+   新电脑、新浏览器第一次打开也自带这份名单，不用先导入打卡表就能记请假、出差。
+   A/B 组按用户确认的「人员对调后」名单写入（原推算 A 与 B 互换）；刘浩按用户确认为 A 组。 */
+const DEFAULT_STAFF = [
+  {id:"1", name:"翁曼", department:"财务部", group:"B"},
+  {id:"2", name:"霍欣雨", department:"财务部", group:"A"},
+  {id:"3", name:"田国宏", department:"物流部", group:"B"},
+  {id:"4", name:"夏喜东", department:"销售部", group:"B"},
+  {id:"5", name:"翁玉东", department:"销售部", group:"B"},
+  {id:"6", name:"李孝阳", department:"销售部", group:"A"},
+  {id:"7", name:"李克顺", department:"物流部", group:"B"},
+  {id:"8", name:"刘向阳", department:"销售部", group:"A"},
+  {id:"9", name:"李天宝", department:"销售部", group:"B"},
+  {id:"11", name:"付乐", department:"物流部", group:"A"},
+  {id:"12", name:"潘加奎", department:"销售部", group:"A"},
+  {id:"13", name:"刘浩", department:"物流部", group:"A"},
+  {id:"15", name:"张玉龙", department:"物流部", group:"B"},
+  {id:"16", name:"王磊", department:"物流部", group:"A"},
+  {id:"17", name:"刘荣成", department:"物流部", group:"B"},
+  {id:"18", name:"赵云龙", department:"物流部", group:"A"},
+  {id:"20", name:"霍亚辉", department:"物流部", group:"A"},
+  {id:"22", name:"马帮将", department:"物流部", group:"B"},
+  {id:"25", name:"杨士俊", department:"物流部", group:"B"},
+  {id:"29", name:"尹友俊", department:"物流部", group:"A"}
+];
+function defaultRoster(){
+  return [
+    ...DEFAULT_NO_PUNCH.map(ex=>({id:"", name:ex.name, department:ex.department,
+      isExternal:false, group:ex.group||"", halfSalary:50, noPunch:true})),
+    ...DEFAULT_STAFF.map(e=>({id:e.id, name:e.name, department:e.department,
+      isExternal:false, group:e.group||"", halfSalary:50, noPunch:false}))
+  ];
+}
 
 /* ================= 工具 ================= */
 function $(id){ return document.getElementById(id); }
@@ -1063,6 +1258,9 @@ function daysInMonth(){ return new Date(S.baseDate.getFullYear(), S.baseDate.get
 
 // 生成每日完整判定（遍历当月每一天，含缺勤日），并附带罚款金额
 function computeDaily(){
+  // 平时记录阶段还没导入刷卡记录：不做任何自动判定，避免把全员每天判成「全天缺勤」。
+  // 请假/出差等手工记录仍然存在，月底导入后会自动参与判定。
+  if(!bookHasPunches()) return [];
   const rows = [];
   const lastDay = daysInMonth();
   for(const emp of S.employees){
@@ -1173,7 +1371,9 @@ function attendanceCell(emp, day){
   // 免打卡人员（高层）：默认全勤，周日（C组）休息，手动覆盖优先
   if(emp.noPunch){
     const mk = emp.name+"|"+dstr;
-    const man = S.attManual[mk];
+    // 一键签到的草稿在汇总阶段让位给自动判定
+    const manRaw = S.attManual[mk];
+    const man = (manRaw && !(bookHasPunches() && manRaw.draft)) ? manRaw : null;
     let am, pm;
     if(ov){
       if(ov.indexOf("请假")>=0){ am="×"; pm="×"; }
@@ -1192,10 +1392,33 @@ function attendanceCell(emp, day){
       overtime:false};
   }
 
+  // 平时记录阶段：不推断出勤/缺勤，只显示手工标记与休息日，其余格子留白。
+  // 等月底导入刷卡记录后，这里会自动恢复成原来的判定口径。
+  if(!bookHasPunches()){
+    const man0 = S.attManual[emp.name+"|"+dstr];
+    let am0 = "", pm0 = "";
+    if(man0){ am0 = man0.am; pm0 = man0.pm; }
+    else if(ov){
+      if(ov.indexOf("请假")>=0){ am0="×"; pm0="×"; }
+      else if(ov.indexOf("出差")>=0){ am0="差"; pm0="差"; }
+      else if(ov.indexOf("休息")>=0 || ov.indexOf("调休")>=0){ am0="○"; pm0="○"; }
+      else { am0="√"; pm0="√"; }
+    } else if(isRestDate(dateObj) || empRestsOnDate(emp, dateObj)){ am0="○"; pm0="○"; }
+    return {
+      date:dstr, day, am:am0, pm:pm0, holiday:isHoliday(dateObj),
+      amPresent:(am0==="√"||am0==="差")?0.5:0,
+      pmPresent:(pm0==="√"||pm0==="差")?0.5:0,
+      amLeave:(am0==="×")?0.5:0, pmLeave:(pm0==="×")?0.5:0,
+      trip:(am0==="差"?0.5:0)+(pm0==="差"?0.5:0),
+      overtime:false
+    };
+  }
+
   const r = judge(emp, day);
   const afternoon = r.afternoon;
   // 总表手动覆盖（所有人点击格子后写入，优先级最高，且不自动回写罚款明细）
-  const man2 = S.attManual[emp.name+"|"+dstr];
+  const man2Raw = S.attManual[emp.name+"|"+dstr];
+  const man2 = (man2Raw && !(bookHasPunches() && man2Raw.draft)) ? man2Raw : null;
 
   let am = "", pm = "", rest = false;
   if(man2){
@@ -1304,6 +1527,7 @@ function syncAttToDetail(){
   for(const mk in S.attManual){
     const c = S.attManual[mk];
     if(!c) continue;
+    if(c.draft){ delete S.attManual[mk]; continue; }  // 一键签到草稿不写进罚款明细
     const am = c.am, pm = c.pm;
     let reason = null;
     if(am==="缺" || pm==="缺"){
@@ -1349,11 +1573,13 @@ function pushUndo(label){
     overrides: {...S.overrides},
     halfOverrides: {...S.halfOverrides},
     employees: S.employees.map(e=>({...e, dayTimes: e.dayTimes})),
+    roster: JSON.parse(JSON.stringify(S.roster||[])),
     attManual: JSON.parse(JSON.stringify(S.attManual||{})),
     tripRemarks: {...S.tripRemarks},
     tripPlaces: {...S.tripPlaces},
     holidays: [...S.holidays],
-    marks: JSON.parse(JSON.stringify(S.marks||[]))
+    marks: JSON.parse(JSON.stringify(S.marks||[])),
+    restA: [...S.restA], restB: [...S.restB], signDays: [...(S.signDays||[])]
   });
   if(S.undoStack.length>50) S.undoStack.shift();
 }
@@ -1364,11 +1590,15 @@ function undo(){
   S.overrides = s.overrides;
   S.halfOverrides = s.halfOverrides;
   S.employees = s.employees;
+  if(s.roster!==undefined) S.roster = s.roster;
   if(s.attManual!==undefined) S.attManual = s.attManual;
   if(s.tripRemarks!==undefined) S.tripRemarks = s.tripRemarks;
   if(s.tripPlaces!==undefined) S.tripPlaces = s.tripPlaces;
   if(s.holidays!==undefined) S.holidays = new Set(s.holidays);
   if(s.marks!==undefined) S.marks = s.marks;
+  if(s.restA!==undefined) S.restA = new Set(s.restA);
+  if(s.restB!==undefined) S.restB = new Set(s.restB);
+  if(s.signDays!==undefined) S.signDays = new Set(s.signDays);
   render();
 }
 
@@ -1673,13 +1903,35 @@ th{background:#fafbfc;color:#7a828e;font-weight:600}</style></head><body>
 let currentTab = "all";
 function render(){
   renderBookBar();
+  // 阶段排版：平时记录聚焦总表（全宽、设置收起），导入打卡后恢复原两栏排版
+  const recordingPhase = !bookHasPunches();
+  $("main").classList.toggle("phase-recording", recordingPhase);
+  $("main").classList.toggle("phase-done", !recordingPhase);
+  // body 同样带阶段类：header / 账本栏在 #main 外面，也要跟着切换极简视图
+  document.body.classList.toggle("phase-recording", recordingPhase);
+  document.body.classList.toggle("phase-done", !recordingPhase);
+  if(!recordingPhase){
+    $("main").classList.remove("settings-open");
+    document.body.classList.remove("books-open");
+  }
+  const bs = $("btnSettings");
+  if(bs) bs.classList.toggle("hidden", !recordingPhase);
+  const bb = $("btnBooks");
+  if(bb){
+    bb.classList.toggle("hidden", !recordingPhase);
+    bb.textContent = document.body.classList.contains("books-open") ? "📒 收起月份 / 备份" : "📒 月份 / 备份";
+  }
   if(!S.employees.length){ $("empty").classList.remove("hidden"); $("main").classList.add("hidden"); return; }
   $("empty").classList.add("hidden"); $("main").classList.remove("hidden");
 
   // 概览
   const external = S.employees.filter(e=>e.isExternal);
   const hasData = S.employees.filter(e=>Object.keys(e.dayTimes).length>0).length;
+  const phaseStat = bookHasPunches()
+    ? `<div class="stat"><div class="num" style="font-size:17px;color:var(--green)">已导入打卡</div><div class="label">月底汇总阶段</div></div>`
+    : `<div class="stat"><div class="num" style="font-size:17px;color:var(--orange)">平时记录</div><div class="label">罚款明细待月底导入</div></div>`;
   $("statbar").innerHTML = `
+    ${phaseStat}
     <div class="stat"><div class="num">${S.employees.length}</div><div class="label">员工总数</div></div>
     <div class="stat"><div class="num">${hasData}</div><div class="label">有打卡数据</div></div>
     <div class="stat"><div class="num">${external.length}</div><div class="label">外勤/送货</div></div>
@@ -1748,19 +2000,45 @@ function renderResults(){
   const totalFull = summary.reduce((a,b)=>a+b.fullYuan,0);
   const pending = detail.filter(d=>d.verifyable).length;
 
-  $("summaryGrid").innerHTML = `
-    <div class="scard"><div class="v red">¥${totalYuan}</div><div class="k">罚款总金额</div></div>
-    <div class="scard"><div class="v">${summary.length}</div><div class="k">有罚款人数</div></div>
-    <div class="scard"><div class="v" style="color:#e67700">${pending}</div><div class="k">待核实</div></div>
-    <div class="scard"><div class="v red">¥${totalLate}</div><div class="k">迟到罚款</div></div>
-    <div class="scard"><div class="v">¥${totalAm}</div><div class="k">上午缺勤</div></div>
-    <div class="scard"><div class="v">¥${totalPm}</div><div class="k">下午缺勤</div></div>
-    <div class="scard"><div class="v">¥${totalEarly}</div><div class="k">早退</div></div>
-    <div class="scard"><div class="v">¥${totalFull}</div><div class="k">全天缺勤</div></div>`;
+  // 没导入刷卡记录时是「平时记录阶段」：不显示假的 0 元汇总，改成一条状态说明。
+  const waiting = !bookHasPunches();
+  const detailCard = $("detailCard");
+  if(detailCard) detailCard.classList.toggle("waiting-punches", waiting);
+  // 平时记录阶段没有罚款明细，同步按钮先置灰并说明原因
+  const syncBtn = $("btnSyncToDetail");
+  if(syncBtn){
+    syncBtn.disabled = waiting;
+    syncBtn.title = waiting ? "月底导入刷卡记录后才能同步" : "";
+  }
+  const syncHint = document.querySelector(".att-sync-bar .sync-hint");
+  if(syncHint) syncHint.textContent = waiting
+    ? "平时记的请假/出差已自动保存在总表里，月底导入打卡记录后再点同步"
+    : "总表里的手动修改不会自动回写罚款明细，确认无误后点这里同步";
+
+  if(waiting){
+    $("summaryGrid").innerHTML = `<div class="phase-banner">📝 <b>${esc(bookLabel(S.bookKey))} · 平时记录中</b>：还没导入员工刷卡记录，具体几点几分迟到、哪天缺勤暂时算不出来，罚款明细留到月底导入后自动生成。<br>现在可以直接在下面记请假、出差，导入时这些手工记录会自动保留，不会被覆盖。</div>`;
+  } else {
+    $("summaryGrid").innerHTML = `
+      <div class="scard"><div class="v red">¥${totalYuan}</div><div class="k">罚款总金额</div></div>
+      <div class="scard"><div class="v">${summary.length}</div><div class="k">有罚款人数</div></div>
+      <div class="scard"><div class="v" style="color:#e67700">${pending}</div><div class="k">待核实</div></div>
+      <div class="scard"><div class="v red">¥${totalLate}</div><div class="k">迟到罚款</div></div>
+      <div class="scard"><div class="v">¥${totalAm}</div><div class="k">上午缺勤</div></div>
+      <div class="scard"><div class="v">¥${totalPm}</div><div class="k">下午缺勤</div></div>
+      <div class="scard"><div class="v">¥${totalEarly}</div><div class="k">早退</div></div>
+      <div class="scard"><div class="v">¥${totalFull}</div><div class="k">全天缺勤</div></div>`;
+  }
 
   // 明细：按人分组展示
   const list = $("detailList");
   list.innerHTML = "";
+  const oldSum0 = $("summaryCard"); if(oldSum0) oldSum0.remove();
+  if(waiting){
+    list.innerHTML = `<div class="pending-tip">💰 <b>罚款明细将在月底导入刷卡记录后自动生成</b><br>
+      迟到几分钟、哪天上午/下午缺勤，只有员工刷卡记录里才有，人工没法随时登记，所以这一块平时不显示。<br>
+      平时请直接在「✈️ 出差登记」和「📋 考勤总表」里记录；已有的请假、出差、核实会自动保留，导入打卡表后参与判定。</div>`;
+    return;
+  }
   // 已核实 tab：列出所有已免罚记录，可一键撤销
   if(currentTab === "verified"){
     renderVerifiedList(list);
@@ -1857,6 +2135,37 @@ function renderResults(){
   if(oldSum) oldSum.remove();
   sumCard.id = "summaryCard";
   $("summaryGrid").after(sumCard);
+}
+
+/* ================= 一键签到（平时记录阶段） =================
+   点总表的日期表头 = 当天全员签到，再点一次 = 取消当天全员签到。
+   「签到」只记到岗，不代表没有迟到、不代表没有罚款；写进 attManual 时带 draft:true。
+   月底导入刷卡记录会清掉这些草稿，由打卡时间重新判定，绝不盖住真实缺勤。 */
+function toggleAllPresent(day){
+  const dateObj = dayToDate(day);
+  const dstr = dateKey(dateObj);
+  const signed = S.signDays.has(dstr);
+  pushUndo((signed ? "取消一键签到 " : "一键签到 ") + dstr);
+  if(signed){
+    S.signDays.delete(dstr);
+    // 只清掉这一天由一键签到生成的草稿；人工改过的格子、请假/出差一概保留
+    S.employees.forEach(emp=>{
+      const mk = emp.name+"|"+dstr;
+      if(S.attManual[mk] && S.attManual[mk].draft) delete S.attManual[mk];
+    });
+  }else{
+    S.signDays.add(dstr);
+    const holiday = isRestDate(dateObj);
+    S.employees.forEach(emp=>{
+      const mk = emp.name+"|"+dstr;
+      const old = S.attManual[mk];
+      if(old && !old.draft) return;   // 已手工记过请假/出差，保留不改
+      const isRest = holiday || empRestsOnDate(emp, dateObj);
+      S.attManual[mk] = {am:isRest?"○":"√", pm:isRest?"○":"√", draft:true};
+    });
+  }
+  savePersist();
+  renderAttendance();   // 只重画总表，页面不跳动
 }
 
 /* ================= 考勤总表渲染 ================= */
@@ -1976,9 +2285,15 @@ function renderAttendance(){
   let head1 = `<tr><th rowspan="3" class="idx" data-th="idx">序号</th><th rowspan="3" class="name" data-th="name">姓名</th>`;
   let head2 = `<tr>`;
   let head3 = `<tr>`;
+  const recording = !bookHasPunches();
   for(let day=1; day<=lastDay; day++){
     const wd = WD[dayToDate(day).getDay()];
-    head1 += `<th colspan="2" data-th="date" data-hday="${day}">${day}</th>`;
+    const signed = recording && S.signDays.has(dateKey(dayToDate(day)));
+    // 记录阶段：日期表头本身就是「一键签到」按钮，点一下全员签到、再点一下取消
+    const signAttr = recording
+      ? ` class="sign-day${signed?" signed":""}" data-signday="${day}" title="${signed?"再点一次取消当天全员签到":"点此给当天全员一键签到（只记到岗，不代替打卡）"}"`
+      : "";
+    head1 += `<th colspan="2" data-th="date" data-hday="${day}"${signAttr}>${day}${signed?'<i class="sign-tick">✓</i>':''}</th>`;
     head2 += `<th colspan="2" data-th="week" data-hday="${day}">${wd}</th>`;
     head3 += `<th class="half" data-th="half" data-hday="${day}" data-hhalf="am">上</th><th class="half" data-th="half" data-hday="${day}" data-hhalf="pm">下</th>`;
   }
@@ -1999,7 +2314,8 @@ function renderAttendance(){
   }).join("");
 
   const totalCols = 2 + lastDay*2 + visCols.length;
-  const head0 = `<tr><th colspan="${totalCols}" class="att-title">${y}年${m}月 考勤总表 · 应出勤 <b style="color:var(--blue)">${fad.work}</b> 天（本月共 ${fad.total} 天，休 ${fad.rest} 天）</th></tr>`;
+  const titleTip = recording ? `<span class="att-title-tip">点日期数字 = 当天全员签到（再点取消）· 只记到岗，不代替打卡与罚款核算</span>` : "";
+  const head0 = `<tr><th colspan="${totalCols}" class="att-title">${y}年${m}月 考勤总表 · 应出勤 <b style="color:var(--blue)">${fad.work}</b> 天（本月共 ${fad.total} 天，休 ${fad.rest} 天）${titleTip}</th></tr>`;
   const wrap = $("attWrap");
   const hl = hlPalette(), hl2 = hlPalette2();
   wrap.style.setProperty("--hl", hl.light);
@@ -2034,7 +2350,7 @@ function renderTrip(){
   const list = S.tripDeptFilter ? all.filter(t=>t.dept===S.tripDeptFilter) : all;
 
   if(!list.length){
-    $("tripWrap").innerHTML = `<div class="empty-tip">${all.length ? "该部门暂无出差记录" : "暂无出差记录。点上方「＋ 添加出差」手动登记，或在罚款明细里把该员工该天核实为「出差」后自动汇总。"}</div>`;
+    $("tripWrap").innerHTML = `<div class="empty-tip">${all.length ? "该部门暂无出差记录" : "暂无出差记录。点上方「＋ 添加出差」随时登记，或在考勤总表里把对应日期标成「差」后自动汇总。"}</div>`;
     return;
   }
   const remarkHead = showRemark ? `<th style="width:200px">备注</th>` : "";
@@ -2296,7 +2612,7 @@ function savePersist(){
   if(!S.books || !S.bookKey) return;
   captureBook();
   const data = {
-    v: 2,
+    v: 4,
     params: S.params,
     roster: S.roster,
     attCols: S.attCols,
@@ -2313,7 +2629,11 @@ function savePersist(){
   try{ localStorage.setItem(KEY, JSON.stringify(data)); }
   catch(e){
     if(!window.__quotaWarned){ window.__quotaWarned = true;
-      alert("浏览器本地缓存已满或不可写。请先点「⬇ 备份」导出 JSON，再删除不需要的旧月份账本。"); }
+      alert("⚠️ 浏览器本地缓存已满或不可写，刚才的修改没能保存！\n\n"
+        + "① 先点「📒 月份 / 备份 → ⬇ 备份」导出全部账本 JSON 保存好；\n"
+        + "② 再点月份标签右侧的「×」删除不用的旧月份（优先删「已归档」的）；\n"
+        + "③ 然后重新做一次刚才的操作。\n\n"
+        + "备份文件随时可用「⬆ 恢复」导回来。"); }
   }
 }
 function loadPersist(){
@@ -2321,7 +2641,25 @@ function loadPersist(){
   try{ const s = localStorage.getItem(KEY); if(s) raw = JSON.parse(s); }catch(e){}
   S.persist = raw || {};
 
+  // v2 → v3 一次性迁移：用户确认员工管理里 A/B 组的「人员名单」设反，这里整体对调一次。
+  // 只动花名册里的组别，不动轮休日期；保存后版本号写 3，不会重复对调。
   if(raw && raw.v === 2){
+    (raw.roster||[]).forEach(r=>{
+      if(r.group==="A") r.group="B"; else if(r.group==="B") r.group="A";
+    });
+    raw.v = 3;
+  }
+
+  // v3 → v4 一次性迁移：用户确认「刘浩」属于 A 组（旧默认名单里他没分组）。
+  // 只补空组别；如果用户后来手动给刘浩设过别的组，一律不动。
+  if(raw && raw.v === 3){
+    const fixLiuHao = e=>{ if(e && e.name === "刘浩" && !e.group) e.group = "A"; };
+    (raw.roster||[]).forEach(fixLiuHao);
+    Object.keys(raw.books||{}).forEach(k=>{ (raw.books[k].employees||[]).forEach(fixLiuHao); });
+    raw.v = 4;
+  }
+
+  if(raw && (raw.v === 4 || raw.v === 3 || raw.v === 2)){
     S.params = raw.params || {};
     S.roster = Array.isArray(raw.roster) ? raw.roster : [];
     S.attCols = {...getAttCols(), ...(raw.attCols||{})};
@@ -2365,9 +2703,12 @@ function loadPersist(){
     S.bookIndex.push({key:k, state:"recording"});
     S.bookKey = k;
     if(raw && Object.keys(raw).length){
-      MIGRATED_NOTICE = "已把旧版本地数据迁移到「"+bookLabel(k)+"」账本：设置、手工勾选、核实、出差、节假日、轮休都保留了。\n\n如果旧数据其实属于别的月份，请用「＋ 新建月份」建对应账本，再导入那个月的打卡记录即可。";
+      MIGRATED_NOTICE = "已把旧版本地数据迁移到「"+bookLabel(k)+"」账本：设置、手工勾选、核实、出差、节假日、轮休都保留了。\n\n旧版本没有保存员工刷卡明细，所以罚款明细需要重新导入该月「员工刷卡记录」后才会生成；平时记的请假、出差不受影响。\n\n如果旧数据其实属于别的月份，请用「＋ 新建月份」建对应账本，再导入那个月的打卡记录即可。";
     }
   }
+
+  // 全新打开 / 花名册被清空：直接铺好内置 26 人名单，当月总表一打开就是全员
+  if(!S.roster.length) S.roster = defaultRoster();
 
   // 当月账本一定存在（打开就有当月大表）
   const nk = nowKey();
@@ -2385,6 +2726,19 @@ function loadPersist(){
   // 补齐索引里缺失的账本
   S.bookIndex.forEach(it=>{ if(!S.books[it.key]) S.books[it.key] = newBook(it.key); });
   applyBook(S.bookKey);
+}
+
+/* ================= 平时记录：不导入打卡表也能开始 ================= */
+// 全新打开 / 清过缓存时，不需要先有刷卡记录就能进总表记请假、出差。
+function startRecordingOnly(){
+  const b = curBookObj(); if(!b) return;
+  // 花名册为空时铺好内置 26 人名单（免打卡高层 + 全部普通员工）
+  if(!S.roster.length) S.roster = defaultRoster();
+  b.names = S.roster.map(r=>r.name);
+  b.rosterSeeded = true;
+  if(!bookHasPunches()) b.hasPunches = false;  // 仍是平时记录阶段，导入打卡表后才转汇总
+  applyBook(S.bookKey);
+  render();
 }
 
 /* ================= 导入 ================= */
@@ -2426,6 +2780,11 @@ function handleFile(file){
         S.sundays.forEach((d,i)=>{ if((i+1)%2===1) S.restA.add(dateKey(d)); else S.restB.add(dateKey(d)); });
       }
       // 手工勾选 / 核实 / 出差 / 节假日一概不清空 —— 导入只补打卡明细，手工记录优先级最高
+      // 「一键签到」只是平时到岗草稿，导入后清掉，让打卡时间重新判定；请假/出差等真正的人工标记不动
+      for(const k in S.attManual){
+        if(S.attManual[k] && S.attManual[k].draft) delete S.attManual[k];
+      }
+      S.signDays = new Set();   // 表头签到状态也随草稿一起清空
 
       // 自动识别全体休息日（全员无打卡的日期）
       S.restDays = new Set();
@@ -2518,6 +2877,8 @@ function exportResult(){
 function bindEvents(){
   /* ---------- 月份账本 ---------- */
   $("bookTabs").addEventListener("click", e=>{
+    const del = e.target.closest("[data-del]");
+    if(del){ e.stopPropagation(); deleteBook(del.dataset.del); return; }
     const t = e.target.closest("[data-book]"); if(!t) return;
     switchBook(t.dataset.book);
   });
@@ -2548,7 +2909,7 @@ function bindEvents(){
     ".settings-col input", ".settings-col select", ".settings-col .switch", ".settings-col .btn-mini",
     ".settings-col .day", "#restPicker button", "#cModeBtn", "#btnAddEmp", "#btnGuess", "#btnAddMark",
     "#hlSwatches .hl-sw", "#hlSwatches2 .hl-sw", "#markList input", "#markList button",
-    "td.c.editable", "#attToggles input", "#btnSyncToDetail",
+    "td.c.editable", "#attToggles input", "#btnSyncToDetail", "th.sign-day",
     "#detailList .btn-verify", "#detailList .btn-undo", "#detailList input",
     "#tripCard input", "#tripCard button", "#tripCard select", "#tripCard .day"
   ].join(",");
@@ -2564,7 +2925,18 @@ function bindEvents(){
   ["click","change","input"].forEach(ev=> $("main").addEventListener(ev, lockGuard, true));
 
   $("btnImport").onclick = ()=> $("fileInput").click();
-  $("empty").onclick = e=>{ if(e.target.id==="empty"||e.target.closest("#empty")) $("fileInput").click(); };
+  $("btnEmptyImport").onclick = ()=> $("fileInput").click();
+  $("btnStartRecord").onclick = startRecordingOnly;
+  $("btnSettings").onclick = ()=>{
+    const main = $("main");
+    const open = main.classList.toggle("settings-open");
+    $("btnSettings").textContent = open ? "⚙ 收起设置" : "⚙ 展开设置";
+  };
+  $("btnBooks").onclick = ()=>{
+    const open = document.body.classList.toggle("books-open");
+    $("btnBooks").textContent = open ? "📒 收起月份 / 备份" : "📒 月份 / 备份";
+  };
+  $("btnSwapGroups").onclick = swapGroupRoster;
   $("fileInput").onchange = e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=""; };
 
   // 拖拽导入：阻止浏览器默认的「打开/下载」，改为读取文件
@@ -2735,6 +3107,9 @@ function bindEvents(){
 
   // 考勤总表格子点击循环切换（所有人员，仅改总表显示，不自动回写罚款明细）
   $("attWrap").addEventListener("click", e=>{
+    // 记录阶段：日期表头本身就是「一键签到」按钮
+    const signTh = e.target.closest("th.sign-day");
+    if(signTh){ toggleAllPresent(+signTh.dataset.signday); return; }
     const td = e.target.closest("td.c.editable"); if(!td) return;
     const name = td.dataset.name, day = +td.dataset.day, half = td.dataset.half;
     const dstr = dateKey(dayToDate(day));
@@ -2829,7 +3204,11 @@ function bindEvents(){
   });
   // 总表修改 → 手动同步到罚款明细
   $("btnSyncToDetail").onclick = ()=>{
-    if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+    if(!S.employees.length){ alert("请先在员工管理里添加员工"); return; }
+    if(!bookHasPunches()){
+      alert("还没导入员工刷卡记录，罚款明细要等月底导入后才生成，现在不用同步。\n平时记的请假、出差已经保存在考勤总表里了。");
+      return;
+    }
     const n = syncAttToDetail();
     alert(n ? ("已同步 "+n+" 条总表修改到罚款明细") : "总表没有需要同步的修改");
   };
@@ -2900,9 +3279,12 @@ function bindEvents(){
   $("p_verify_mode").addEventListener("change", ()=>{ readParams(); render(); });
 
   // 目录导航：点击平滑滚动到对应区块 + 滚动时高亮当前模块
-  const tocTargets = ["summaryGrid","detailCard","tripCard","attCard"];
   function highlightToc(){
     const btns = $("toc").querySelectorAll(".toc-btn");
+    // 目录顺序跟随阶段排版
+    const tocTargets = $("main").classList.contains("phase-recording")
+      ? ["summaryGrid","attCard","tripCard","detailCard"]
+      : ["summaryGrid","detailCard","tripCard","attCard"];
     const topBar = 80; // 目录栏高度 + 余量
     let activeId = null;
     for(const id of tocTargets){

@@ -1,0 +1,2691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>考勤统计</title>
+<script src="xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#ffffff; --border:#e7eaf0;
+    --text:#1a1d23; --text2:#7a828e;
+    --blue:#2563eb; --blue-soft:#eef4ff;
+    --red:#e5484d; --red-soft:#fdecec;
+    --green:#12a150; --green-soft:#e9f7ef;
+    --orange:#e88a1a; --orange-soft:#fdf3e5;
+    --hl:#CCE8FB; --hl-mid:#A8D3F5; --hl-dark:#1a73e8;
+    --hl2:#DEE9F5; --hl2-mid:#BCCBE4; --hl2-dark:#3b5b8c;
+    --radius:14px; --shadow:0 2px 14px rgba(20,30,50,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+
+  /* 顶部 */
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+  header h1{font-size:22px;font-weight:700;letter-spacing:.5px}
+  header .sub{color:var(--text2);font-size:13px;margin-top:2px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{border:none;border-radius:10px;padding:9px 16px;font-size:14px;cursor:pointer;transition:.15s;font-family:inherit}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover{background:#1d4fd7}
+  .btn-ghost{background:#fff;color:var(--text);border:1px solid var(--border)}
+  .btn-ghost:hover{border-color:#c9d2dd;background:#fafbfc}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+
+  /* 空状态 */
+  #empty{background:var(--card);border:1.5px dashed #cfd6e0;border-radius:var(--radius);padding:64px 24px;text-align:center;color:var(--text2)}
+  #empty .big{font-size:17px;color:var(--text);font-weight:600;margin-bottom:6px}
+  #empty .hint{margin:18px 0;font-size:13px}
+  .drop-zone{cursor:pointer}
+  .drop-zone.drag-over{border-color:var(--blue);background:#eef4ff;color:var(--blue)}
+
+  /* 概览条 */
+  .statbar{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .stat{background:var(--card);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow);min-width:120px}
+  .stat .num{font-size:24px;font-weight:700;color:var(--blue)}
+  .stat .num.red{color:var(--red)}
+  .stat .label{font-size:12px;color:var(--text2);margin-top:2px}
+
+  /* 两栏布局 */
+  .layout{display:grid;grid-template-columns:372px 1fr;gap:16px;align-items:start}
+  @media(max-width:900px){.layout{grid-template-columns:1fr}}
+  /* 左侧设置栏：悬浮跟随，滚动时始终可见，内容超高时栏内可滚动 */
+  .settings-col{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow-y:auto;padding-right:2px;scrollbar-width:thin}
+  .settings-col::-webkit-scrollbar{width:6px}
+  .settings-col::-webkit-scrollbar-thumb{background:#d5dbe4;border-radius:3px}
+
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+  .card h2{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+  .card h2 .tag{font-size:12px;font-weight:500;color:var(--text2)}
+
+  /* 目录导航 */
+  .toc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;margin-bottom:16px;position:sticky;top:10px;z-index:20;border:1px solid var(--border)}
+  .toc-label{font-size:13px;color:var(--blue);margin-right:6px;font-weight:700}
+  .toc-btn{border:1px solid var(--border);background:#fff;border-radius:9px;padding:7px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text);transition:.15s}
+  .toc-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft)}
+  .toc-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 2px 6px rgba(37,99,235,.28)}
+
+  /* 参数 */
+  .param-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f2f4f7}
+  .param-row:last-child{border-bottom:none}
+  .param-row label{color:var(--text2);font-size:13px;white-space:nowrap}
+  .param-row input,.param-row select{border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;width:110px;font-family:inherit;background:#fff}
+  .param-row input:focus,.param-row select:focus{outline:none;border-color:var(--blue)}
+  .param-sep{margin:12px 0 4px;padding-top:10px;font-size:12px;font-weight:600;color:var(--blue);border-top:1px solid #f2f4f7}
+
+  .switch{position:relative;width:38px;height:22px;background:#dfe3ea;border-radius:22px;cursor:pointer;transition:.2s;flex-shrink:0}
+  .switch.on{background:var(--blue)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s}
+  .switch.on::after{left:18px}
+
+  /* 周日说明 */
+  .sundays{font-size:13px;color:var(--text2);background:var(--blue-soft);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .sundays b{color:var(--blue)}
+  /* A/B 组轮休日期选择 */
+  .rest-picker{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}
+  .rest-day{display:flex;flex-direction:column;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit;background:#fff;min-width:52px;transition:.12s}
+  .rest-day:hover{border-color:var(--blue)}
+  .rest-day b{font-size:13px;color:var(--text);line-height:1}
+  .rest-day span{font-size:10px;color:var(--text2);line-height:1}
+  .rest-day.a{background:var(--blue);border-color:var(--blue)}
+  .rest-day.a b,.rest-day.a span{color:#fff}
+  .rest-day.b{background:var(--green);border-color:var(--green)}
+  .rest-day.b b,.rest-day.b span{color:#fff}
+
+  /* 员工表 */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #f0f2f6}
+  th{color:var(--text2);font-weight:600;background:#fafbfc;white-space:nowrap}
+  td{white-space:nowrap}
+  #empTable th,#empTable td{padding:6px 5px}
+  #empTable .half-sal,.half-amt{border:1px solid var(--border);border-radius:7px;padding:4px 6px;font-size:13px;font-family:inherit}
+  #empTable .half-sal{width:56px}
+  #empTable .half-sal:focus,.half-amt:focus{outline:none;border-color:var(--blue)}
+  .emp-ops{display:flex;gap:8px;align-items:center}
+  .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600}
+  .badge.ex{background:var(--orange-soft);color:var(--orange)}
+  .badge.a{background:var(--blue-soft);color:var(--blue)}
+  .badge.b{background:var(--green-soft);color:var(--green)}
+  .btn-mini{border:1px solid var(--border);background:#fff;border-radius:7px;padding:3px 8px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--text)}
+  .btn-mini:hover{border-color:#c9d2dd}
+  .btn-mini.del{color:var(--red)}
+
+  /* 一键核实 / 撤销按钮 */
+  .btn-verify{border:1px solid var(--green);background:var(--green-soft);color:var(--green);border-radius:7px;padding:3px 10px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;transition:.15s}
+  .btn-verify:hover{background:var(--green);color:#fff}
+  .btn-undo{border:1px solid var(--border);background:#fff;color:var(--text2);border-radius:7px;padding:3px 10px;font-size:12px;cursor:pointer;font-family:inherit;transition:.15s}
+  .btn-undo:hover{border-color:var(--red);color:var(--red)}
+
+  /* 结果 */
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+  .scard{background:var(--card);border-radius:12px;padding:14px;box-shadow:var(--shadow);text-align:center}
+  .scard .v{font-size:26px;font-weight:700}
+  .scard .v.red{color:var(--red)}
+  .scard .k{font-size:12px;color:var(--text2);margin-top:3px}
+
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{border:1px solid var(--border);background:#fff;border-radius:9px;padding:7px 14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--text2)}
+  .tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+
+  .table-wrap{overflow-x:auto}
+  .money{color:var(--red);font-weight:600}
+  .free{color:var(--green);font-weight:600}
+  .pending{color:var(--orange);font-weight:600}
+
+  select.verify{border:1px solid var(--border);border-radius:8px;padding:4px 6px;font-size:12px;font-family:inherit;background:#fff;max-width:120px}
+  select.verify:focus{outline:none;border-color:var(--blue)}
+
+  .empty-tip{text-align:center;color:var(--text2);padding:26px 0;font-size:13px}
+
+  /* 考勤总表 */
+  .att-table{border-collapse:collapse;font-size:11px;line-height:1.2;white-space:nowrap}
+  .att-table th,.att-table td{border:1px solid #e2e6ee;padding:2px 3px;text-align:center}
+  .att-table thead th{background:#fafbfc;font-weight:600;color:var(--text2)}
+  .att-table .idx{width:28px;color:var(--text2)}
+  .att-table .name{width:62px;text-align:left;padding-left:6px;color:var(--text)}
+  .att-table .half{font-size:9px;color:var(--text2);font-weight:400}
+  .att-table td.c{width:15px;min-width:15px;font-size:11px;font-weight:600}
+  .att-table td.stat{font-size:11px;color:var(--text);font-weight:500}
+  .sym-rest{color:var(--blue)}
+  .sym-leave{color:var(--red)}
+  .sym-trip{color:#7c3aed}
+  .sym-present{color:var(--green)}
+  .sym-absent{color:var(--orange)}
+  .att-table td.wknd{background:#f7f9fc}
+  .np-name,.att-table .name.np-name{color:var(--green);font-weight:600}
+  .np-tag{display:inline-block;font-size:11px;color:#fff;background:var(--green);border-radius:5px;padding:0 5px;margin-left:4px;font-weight:600;vertical-align:1px}
+  .att-table td.c.editable{cursor:pointer}
+  .att-table td.c.editable:hover{background:#eef4ff;outline:1px solid var(--blue)}
+  .att-table td.c.editable:active{background:#dbe8ff}
+  /* 悬浮定位高亮：考勤区用 --hl 系列，统计区用 --hl2 系列；表头深色档为「加深」 */
+  .att-table th.th-hl{background:var(--hl);color:var(--hl-dark);font-weight:700}
+  .att-table th.th-hl-strong{background:var(--hl-dark);color:#fff;font-weight:700}
+  .att-table th.th-hl2{background:var(--hl2);color:var(--hl2-dark);font-weight:700}
+  .att-table th.th-hl2-strong{background:var(--hl2-dark);color:#fff;font-weight:700}
+  .att-table td.col-hl{background:var(--hl)}
+  .att-table td.col-hl2{background:var(--hl2)}
+  .att-table td.cell-hl{background:var(--hl-mid);outline:2px solid var(--hl-dark);outline-offset:-1px;position:relative;z-index:1}
+  .att-table td.cell-hl2{background:var(--hl2-mid);outline:2px solid var(--hl2-dark);outline-offset:-1px;position:relative;z-index:1}
+  .att-table tr.row-hl td{background:var(--hl)}
+  .att-table tr.row-hl td.name{background:var(--hl);font-weight:700}
+  .att-table tr.row-hl td.idx{background:var(--hl);font-weight:700}
+  .att-table th.att-title{background:#fff;font-weight:700;font-size:13px;color:var(--text);letter-spacing:.5px}
+  /* 悬浮高亮配色选择 */
+  .hl-swatches{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  .hl-swatches .hl-sw{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:9px;padding:5px 9px;cursor:pointer;font-size:12px;color:var(--text);transition:.15s;background:#fff}
+  .hl-swatches .hl-sw:hover{border-color:var(--blue)}
+  .hl-swatches .hl-sw .dot{width:20px;height:20px;border-radius:6px;border:1px solid rgba(0,0,0,.08);flex-shrink:0}
+  .hl-swatches .hl-sw.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue);font-weight:600}
+  .col-toggles{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:10px}
+  .col-toggles label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none}
+  .col-toggles input{accent-color:var(--blue)}
+  /* 总表「同步到罚款明细」工具条 */
+  .att-sync-bar{display:flex;align-items:center;gap:10px;background:var(--blue-soft);border:1px solid #dbe6fb;border-radius:10px;padding:8px 12px;margin-bottom:10px}
+  .att-sync-bar .sync-btn{border:none;background:var(--blue);color:#fff;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+  .att-sync-bar .sync-btn:hover{background:#1d4fd7}
+  .att-sync-bar .sync-hint{font-size:12px;color:var(--text2);line-height:1.5}
+  .trip-place{border:1px solid var(--border);border-radius:7px;padding:4px 8px;font-size:13px;font-family:inherit;width:130px}
+  .trip-place:focus{outline:none;border-color:var(--blue)}
+  .trip-remark{border:1px solid var(--border);border-radius:7px;padding:4px 8px;font-size:13px;font-family:inherit;width:180px}
+  .trip-remark:focus{outline:none;border-color:var(--blue)}
+  .day-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .day-grid .day{height:30px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:7px;font-size:13px;cursor:pointer;user-select:none;background:#fff}
+  .day-grid .day:hover{border-color:var(--blue)}
+  .day-grid .day.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+  .day-grid.holiday .day.on{background:#e6a700;border-color:#e6a700;color:#fff;font-weight:600}
+  /* 出差人员多选列表：浮动小模块（点选变色） */
+  .person-pick{max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px}
+  .person-pick .dept-head{font-size:12px;color:var(--text2);font-weight:700;padding:6px 4px 4px;margin-top:4px}
+  .person-pick .dept-head:first-child{margin-top:0}
+  .person-pick .chip-wrap{display:flex;flex-wrap:wrap;gap:7px;padding:2px 0 4px}
+  .person-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:18px;padding:6px 13px;font-size:13px;cursor:pointer;user-select:none;background:#fff;transition:.15s;font-family:inherit;color:var(--text);line-height:1.3}
+  .person-chip:hover{border-color:var(--blue);background:var(--blue-soft);transform:translateY(-1px)}
+  .person-chip.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700;box-shadow:0 3px 8px rgba(37,99,235,.3)}
+  .person-chip .chip-np{font-style:normal;font-size:11px;color:var(--green);font-weight:600}
+  .person-chip.on .chip-np{color:#d3f7e0}
+  /* 考勤标记管理 */
+  .mark-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f2f4f7}
+  .mark-row:last-child{border-bottom:none}
+  .mark-row .sym-inp{width:48px;text-align:center;border:1px solid var(--border);border-radius:9px;padding:7px 6px;font-size:14px;font-family:inherit;background:#fafbfc;transition:.15s}
+  .mark-row .label-inp{flex:1;border:1px solid var(--border);border-radius:9px;padding:7px 9px;font-size:13px;font-family:inherit;transition:.15s}
+  .mark-row .color-swatch{width:32px;height:32px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px var(--border),0 2px 6px rgba(20,30,50,.18);cursor:pointer;flex-shrink:0;padding:0;transition:.15s}
+  .mark-row .color-swatch:hover{transform:scale(1.12);box-shadow:0 0 0 1px var(--border),0 4px 10px rgba(20,30,50,.25)}
+  .mark-row input:focus{outline:none;border-color:var(--blue);background:#fff}
+  /* 颜色色板浮层（苹果风） */
+  .color-pop{position:fixed;z-index:90;background:#fff;border-radius:18px;box-shadow:0 16px 48px rgba(20,30,50,.22);padding:16px;display:none;border:1px solid rgba(20,30,50,.06)}
+  .color-pop.show{display:block}
+  .color-pop .palette{display:grid;grid-template-columns:repeat(6,34px);gap:10px}
+  .color-pop .sw{width:34px;height:34px;border-radius:50%;cursor:pointer;transition:.15s;border:2px solid #fff;box-shadow:0 0 0 1px rgba(20,30,50,.12);padding:0}
+  .color-pop .sw:hover{transform:scale(1.18)}
+  .color-pop .sw.on{box-shadow:0 0 0 2.5px var(--blue), inset 0 0 0 3px #fff;transform:scale(1.08)}
+  .color-pop .custom-row{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #f2f4f7}
+  .color-pop .custom-row .custom-swatch{position:relative;width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid #fff;box-shadow:0 0 0 1px rgba(20,30,50,.12);flex-shrink:0}
+  .color-pop .custom-row .custom-swatch input[type=color]{position:absolute;inset:-6px;width:46px;height:46px;border:none;padding:0;background:none;cursor:pointer}
+  .color-pop .custom-row span{font-size:12px;color:var(--text2)}
+  .legend-hint{font-size:12px;color:var(--text2);line-height:1.7;background:var(--blue-soft);border-radius:10px;padding:8px 12px;margin-bottom:8px}
+  /* 导出中心 */
+  .exp-grid{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:6px}
+  .exp-grid th,.exp-grid td{border-bottom:1px solid #f0f2f6;padding:9px 8px;text-align:left}
+  .exp-grid th{color:var(--text2);font-weight:600;font-size:12px}
+  .exp-grid td:first-child{font-weight:600}
+  .exp-btn{width:100%;padding:6px 10px}
+
+  /* 按人分组的明细卡片 */
+  .person-card{background:#fff;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  .dept-tag{font-size:12px;font-weight:500;color:var(--text2);margin-left:6px}
+  .person-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+  .person-table th,.person-table td{padding:8px 12px;text-align:left;border-bottom:1px solid #f0f2f6;vertical-align:middle}
+  .person-table tr:last-child td{border-bottom:none}
+  .person-table th{color:var(--text2);font-weight:600;background:#fafbfc;white-space:nowrap}
+  /* 组头行：姓名/汇总与下方「罚款」「核实」列严格上下对齐 */
+  .person-table .ph-row th{background:#fafbfc;border-bottom:1px solid #f0f2f6;padding:11px 12px;font-weight:400}
+  .person-table .ph-row .ph-name{font-size:14px;font-weight:700;color:var(--text);text-align:left}
+  .person-table .ph-row .ph-fine{text-align:right;font-size:13px;color:var(--text2);white-space:nowrap}
+  .person-table .ph-row .ph-verify{text-align:center;font-size:13px;color:var(--text2);white-space:nowrap}
+  .person-table .ph-row b{font-size:15px;line-height:1}
+
+  /* 核实后淡出动效 */
+  @keyframes fadeOut{to{opacity:0;transform:translateX(20px)}}
+  @keyframes fadeOutCard{to{opacity:0;transform:translateY(6px)}}
+  .person-table tr.fade-out{animation:fadeOut .28s ease forwards}
+  .person-card.fade-out-card{animation:fadeOutCard .28s ease forwards}
+
+  /* 弹窗 */
+  .modal-mask{position:fixed;inset:0;background:rgba(20,25,40,.4);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal-mask.show{display:flex}
+  .modal{background:#fff;border-radius:16px;padding:22px;width:360px;max-width:92vw;box-shadow:0 10px 40px rgba(0,0,0,.18)}
+  .modal h3{font-size:16px;margin-bottom:16px}
+  .modal .field{margin-bottom:12px}
+  .modal .field label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px}
+  .modal .field input,.modal .field select{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:14px;font-family:inherit}
+  .modal .foot{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>考勤统计</h1>
+      <div class="sub">导入打卡记录 · 自动判定 · 人工核实 · 导出考勤结果</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="btnImport">导入打卡记录</button>
+      <button class="btn btn-ghost" id="btnUndo">↶ 撤销</button>
+      <button class="btn btn-primary" id="btnExportCenter" disabled>导出中心</button>
+      <button class="btn btn-ghost" id="btnExport" disabled>导出完整统计</button>
+    </div>
+  </header>
+
+  <input type="file" id="fileInput" accept=".xls,.xlsx" class="hidden">
+
+  <!-- 空状态 -->
+  <div id="empty" class="drop-zone">
+    <div class="big">导入「员工刷卡记录表」开始</div>
+    <div class="hint">支持 .xls / .xlsx，数据仅在本地浏览器处理，不会上传</div>
+    <button class="btn btn-primary">选择打卡记录文件</button>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="main" class="hidden">
+    <div class="statbar" id="statbar"></div>
+
+    <div class="layout">
+      <!-- 左栏：设置（悬浮跟随） -->
+      <div class="settings-col">
+        <div class="card">
+          <h2>参数设置 <span class="tag">修改后自动重算</span></h2>
+
+          <div class="param-sep">上午缺勤 / 迟到规则</div>
+          <div class="param-row"><label>早上打卡截止</label><input type="time" id="p_morning" value="09:00"></div>
+          <div class="param-row"><label>迟到费率（元/分钟）</label><input type="number" id="p_rate" value="1" min="0"></div>
+          <div class="param-row"><label>迟到≥N分钟算上午缺勤</label><input type="number" id="p_halfmin" value="30" min="1"></div>
+
+          <div class="param-sep">下午缺勤 / 迟到规则</div>
+          <div class="param-row"><label>下午上班截止</label><input type="time" id="p_afternoon" value="14:00"></div>
+          <div class="param-row"><label>下午迟到费率（元/分钟）</label><input type="number" id="p_afternoon_rate" value="1" min="0"></div>
+          <div class="param-row"><label>下午迟到≥N分钟算下午缺勤</label><input type="number" id="p_afternoon_halfmin" value="30" min="1"></div>
+
+          <div class="param-sep">缺勤 / 早退罚款（可分别开关）</div>
+          <div class="param-row"><label>上午缺勤（半天）</label><span style="display:flex;align-items:center;gap:6px"><div class="switch on" id="p_am_fine"></div><span style="font-size:12px;color:var(--text2)">按个人半天工资</span></span></div>
+          <div class="param-row"><label>下午缺勤（半天）</label><span style="display:flex;align-items:center;gap:6px"><div class="switch" id="p_pm_fine"></div><span style="font-size:12px;color:var(--text2)">按个人半天工资</span></span></div>
+          <div class="param-row"><label>早退（元/分钟）</label><span style="display:flex;align-items:center;gap:6px"><div class="switch" id="p_early_fine"></div><input type="number" id="p_early_yuan" value="1" min="0" style="width:66px">元/分</span></div>
+          <div class="param-row"><label>全天缺勤</label><span style="font-size:12px;color:var(--text2)">= 个人半天工资 × 2</span></div>
+
+          <div class="param-sep">下班时间（按部门）</div>
+          <div class="hint" style="font-size:12px;color:var(--text2);margin:4px 0 6px">导入后自动列出每个部门，可分别设置下班打卡时间（默认财务部 18:00、其他部门 19:00）。</div>
+          <div id="deptCutsBox"></div>
+
+          <div class="param-sep">加班统计（考勤总表用）</div>
+          <div class="param-row"><label>启用加班统计</label><span style="display:flex;align-items:center;gap:6px"><div class="switch" id="p_overtime_enabled"></div><span style="font-size:12px;color:var(--text2)">关闭则不计加班</span></span></div>
+          <div class="param-row" id="overtimeRow"><label>加班起点（下班卡≥此时间）</label><input type="time" id="p_overtime" value="20:00"></div>
+
+          <div class="param-sep">核实方式</div>
+          <div class="param-row"><label>核实方式</label>
+            <select id="p_verify_mode">
+              <option value="quick" selected>一键核实</option>
+              <option value="reason">选原因核实</option>
+            </select>
+          </div>
+          <div class="hint" style="font-size:12px;color:var(--text2);line-height:1.6;margin-top:-4px">一键核实：点「✓ 免罚」直接取消该条罚款；选原因核实：下拉选择具体原因（如送货、请假），方便导出给别人看。</div>
+        </div>
+
+        <div class="card">
+          <h2>周日轮休 <span class="tag">可手动调整</span></h2>
+          <div class="sundays" id="sundayInfo">导入后显示</div>
+          <div class="hint" style="font-size:12px;color:var(--text2);margin-bottom:8px">点每个日期在「A休 → B休 → 不休」间循环切换，方便调休。C 组可单休/双休，D 组不休。</div>
+          <div class="rest-picker" id="restPicker"></div>
+          <div class="param-row"><label>A 组休</label><span id="aRest" style="color:var(--blue);font-weight:600"></span></div>
+          <div class="param-row"><label>B 组休</label><span id="bRest" style="color:var(--green);font-weight:600"></span></div>
+          <div class="param-row"><label>C 组</label><button type="button" class="btn-mini" id="cModeBtn">单休（每周日）</button></div>
+          <div class="param-row"><label>D 组</label><span style="color:var(--text2)">不休</span></div>
+        </div>
+
+        <div class="card">
+          <h2>节假日休假 <span class="tag">黄色圆圈 · 全体休息</span></h2>
+          <div class="hint" style="font-size:12px;color:var(--text2);margin-bottom:8px">点选要放假的日期（如国庆、春节），黄色圆圈标注，全员休息；再次点击取消。</div>
+          <div class="day-grid holiday" id="holidayGrid"></div>
+        </div>
+
+        <div class="card">
+          <h2>员工管理 <span class="tag" id="empCount"></span></h2>
+          <div class="emp-ops" style="margin-bottom:12px">
+            <button class="btn-mini" id="btnAddEmp">＋ 添加员工</button>
+            <button class="btn-mini" id="btnGuess">自动推算 A/B 组</button>
+          </div>
+          <div class="table-wrap">
+            <table id="empTable">
+              <thead><tr><th>姓名</th><th>免打卡</th><th>半天工资</th><th>部门</th><th>外勤</th><th>休息组</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>考勤总表设置 <span class="tag">统计列 / 标记 / 高亮色</span></h2>
+          <div class="param-sep" style="margin-top:0;padding-top:0;border-top:none">统计列（显示 / 隐藏）</div>
+          <div class="col-toggles" id="attTogglesInSetting"></div>
+          <div class="param-sep">悬浮高亮颜色</div>
+          <div class="legend-hint">鼠标停在总表任意格/表头上时，十字高亮（行·列·表头）用这些颜色，点色块切换。考勤区与统计列可分别设置。</div>
+          <div class="legend-hint" style="margin-bottom:4px;background:transparent;padding:0">考勤区（日期·星期·上下午·考勤格子）</div>
+          <div class="hl-swatches" id="hlSwatches"></div>
+          <div class="legend-hint" style="margin:10px 0 4px;background:transparent;padding:0">统计列（出勤·请假·扣款·加班·午餐·出差）</div>
+          <div class="hl-swatches" id="hlSwatches2"></div>
+          <div class="param-sep">考勤标记（符号 = 含义）</div>
+          <div class="legend-hint">标记用于考勤总表与免打卡人员格子切换，可增删、改符号、改含义文字，如「缺=缺勤」「差=出差」。</div>
+          <div id="markList"></div>
+          <button class="btn-mini" id="btnAddMark" style="margin-top:8px">＋ 添加标记</button>
+        </div>
+      </div>
+
+      <!-- 右栏：结果 -->
+      <div>
+        <nav class="toc" id="toc">
+          <span class="toc-label">📑 目录</span>
+          <button class="toc-btn" data-target="summaryGrid">📊 概览</button>
+          <button class="toc-btn" data-target="detailCard">💰 罚款明细</button>
+          <button class="toc-btn" data-target="tripCard">✈️ 出差登记</button>
+          <button class="toc-btn" data-target="attCard">📋 考勤总表</button>
+        </nav>
+
+        <div class="summary-grid" id="summaryGrid"></div>
+
+        <div class="card" id="detailCard">
+          <h2>罚款明细 <span class="tag">初版自动算出 → 核实列下拉订正 → 导出即最终版</span></h2>
+          <div class="tabs" id="tabs">
+            <button class="tab active" data-tab="all">全部</button>
+            <button class="tab" data-tab="late">迟到</button>
+            <button class="tab" data-tab="early">早退</button>
+            <button class="tab" data-tab="nopunch">缺勤半天</button>
+            <button class="tab" data-tab="absent">全天缺勤</button>
+            <button class="tab" data-tab="verified">已核实</button>
+          </div>
+          <div id="detailList"></div>
+        </div>
+
+        <div class="card" id="tripCard">
+          <h2>出差登记表
+            <span class="tag"><span id="tripMonth"></span> · 手动登记出差自动联动罚款明细免罚</span>
+          </h2>
+          <div class="emp-ops" style="margin-bottom:10px;flex-wrap:wrap">
+            <button class="btn-mini" id="btnAddTrip">＋ 添加出差</button>
+            <button class="btn-mini" id="btnToggleRemark">显示备注</button>
+            <span style="flex:1"></span>
+            <label style="font-size:12px;color:var(--text2)">部门筛选</label>
+            <select id="tripDeptFilter" style="border:1px solid var(--border);border-radius:7px;padding:3px 8px;font-size:12px;font-family:inherit"></select>
+          </div>
+          <div class="table-wrap" id="tripWrap"></div>
+        </div>
+
+        <div class="card" id="attCard">
+          <h2>考勤总表 <span class="tag" id="attLegend"></span></h2>
+          <div class="att-sync-bar">
+            <button class="sync-btn" id="btnSyncToDetail">⇅ 同步到罚款明细</button>
+            <span class="sync-hint">总表里的手动修改不会自动回写罚款明细，确认无误后点这里同步</span>
+          </div>
+          <div class="col-toggles" id="attToggles"></div>
+          <div class="table-wrap" id="attWrap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 添加员工弹窗 -->
+<div class="modal-mask" id="empModal">
+  <div class="modal">
+    <h3>添加员工</h3>
+    <div class="field"><label>工号</label><input id="m_id" placeholder="如 30"></div>
+    <div class="field"><label>姓名</label><input id="m_name" placeholder="姓名"></div>
+    <div class="field"><label>部门</label>
+      <select id="m_dept"><option>物流部</option><option>销售部</option><option>财务部</option></select>
+    </div>
+    <div class="field"><label>半天工资（元）</label><input type="number" id="m_half" value="50" min="0" step="0.5"></div>
+    <div class="field"><label>休息组</label>
+      <select id="m_grp">
+        <option value="X" selected>不休</option>
+        <option value="A">A 组</option>
+        <option value="B">B 组</option>
+        <option value="C">C 组(每周日休)</option>
+        <option value="D">D 组(不休)</option>
+      </select>
+    </div>
+    <div class="field"><label><input type="checkbox" id="m_ex"> 外勤/送货（不打下班卡）</label></div>
+    <div class="field"><label><input type="checkbox" id="m_np"> 免打卡人员（高层，不打卡，总表手动维护）</label></div>
+    <div class="foot">
+      <button class="btn btn-ghost" id="mCancel">取消</button>
+      <button class="btn btn-primary" id="mOk">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 添加出差弹窗 -->
+<div class="modal-mask" id="tripModal">
+  <div class="modal" style="width:520px">
+    <h3>登记出差 <span style="font-size:12px;color:var(--text2);font-weight:400">可多选人员，登记后自动联动罚款明细免罚</span></h3>
+    <div class="field">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <label style="margin:0">出差人员（可多选）</label>
+        <span style="font-size:12px;color:var(--text2)">已选 <b id="tSelCount" style="color:var(--blue)">0</b> 人</span>
+        <span style="flex:1"></span>
+        <button class="btn-mini" id="tSelAll" type="button">全选</button>
+        <button class="btn-mini" id="tSelNone" type="button">清空</button>
+      </div>
+      <input id="t_search" placeholder="搜索姓名或部门，快速定位…" style="margin-bottom:6px">
+      <div class="person-pick" id="t_names"></div>
+    </div>
+    <div class="field"><label>出差日期（点选，可多选）</label><div class="day-grid" id="t_days"></div></div>
+    <div class="field"><label>出差地（可选）</label><input id="t_place" placeholder="如：广州"></div>
+    <div class="field"><label>备注（可选）</label><input id="t_remark" placeholder="如：参加展会"></div>
+    <div class="foot">
+      <button class="btn btn-ghost" id="tCancel">取消</button>
+      <button class="btn btn-primary" id="tOk">登记</button>
+    </div>
+  </div>
+</div>
+
+<!-- 导出中心弹窗 -->
+<div class="modal-mask" id="exportModal">
+  <div class="modal" style="width:540px">
+    <h3>导出中心 <span style="font-size:12px;color:var(--text2);font-weight:400">4 类表，各支持 Excel / PDF</span></h3>
+    <table class="exp-grid">
+      <thead><tr><th>表格</th><th style="width:110px">Excel（可编辑）</th><th style="width:110px">PDF（美观）</th></tr></thead>
+      <tbody>
+        <tr><td>罚款明细</td><td><button class="btn btn-ghost exp-btn" data-exp="detail-excel">导出</button></td><td><button class="btn btn-ghost exp-btn" data-exp="detail-pdf">导出</button></td></tr>
+        <tr><td>个人罚款汇总</td><td><button class="btn btn-ghost exp-btn" data-exp="summary-excel">导出</button></td><td><button class="btn btn-ghost exp-btn" data-exp="summary-pdf">导出</button></td></tr>
+        <tr><td>考勤总表</td><td><button class="btn btn-ghost exp-btn" data-exp="att-excel">导出</button></td><td><button class="btn btn-ghost exp-btn" data-exp="att-pdf">导出</button></td></tr>
+        <tr><td>出差登记表</td><td><button class="btn btn-ghost exp-btn" data-exp="trip-excel">导出</button></td><td><button class="btn btn-ghost exp-btn" data-exp="trip-pdf">导出</button></td></tr>
+      </tbody>
+    </table>
+    <div class="foot">
+      <button class="btn btn-ghost" id="expCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 颜色色板浮层 -->
+<div class="color-pop" id="colorPop">
+  <div class="palette" id="colorPalette"></div>
+  <div class="custom-row">
+    <div class="custom-swatch" id="customSwatch"></div>
+    <span>自定义颜色</span>
+  </div>
+</div>
+
+<script>
+/* ================= 全局状态 ================= */
+let S = {
+  employees: [],        // {id,name,department,dayTimes:{day:[min]},isExternal,group,halfSalary,noPunch}
+  baseDate: null,       // 当月1号 Date
+  sundays: [],          // 当月周日 Date[]
+  restDays: new Set(),  // 全体休息日（法定假日等）日期字符串 "M/D"
+  params: {},
+  overrides: {},        // 核实覆盖: "name|date" -> 原因
+  halfOverrides: {},    // 明细里单独改的半天金额: "name|date" -> 元
+  persist: {},          // 持久化的名单/组别
+  undoStack: [],        // 操作撤销栈（本次会话内）
+  attCols: {present:true, leave:true, fine:true, overtime:true, lunch:false, trip:true}, // 考勤总表统计列显示
+  tripPlaces: {},       // 出差地: "name" -> 地点
+  tripRemarks: {},      // 出差备注: "name" -> 备注
+  attManual: {},        // 免打卡人员手动考勤: "name|M.D" -> {am,pm}
+  showTripRemark: false,// 出差登记表备注列是否显示
+  tripDeptFilter: "",   // 出差登记表部门筛选
+  holidays: new Set(),  // 手动设置的节假日（法定假期等）"M/D"，考勤总表显示黄色圆圈
+  marks: [],            // 考勤标记（符号+含义+颜色），可增删，驱动免打卡循环切换与符号显示
+  restA: new Set(),     // A 组轮休日期 "M.D"（可手动调整，默认隔周）
+  restB: new Set(),     // B 组轮休日期 "M.D"（可手动调整，默认隔周）
+  cDouble: false,       // C 组是否双休（false=单休每周日，true=双休周六+周日）
+  hlColor: "#CCE8FB",   // 考勤总表悬浮高亮主色（考勤区，浅色，可在设置里切换）
+  hlColor2: "#DEE9F5"   // 统计列（出勤/请假/扣款等）悬浮高亮主题色，可与考勤区不同
+};
+
+// 考勤总表悬浮高亮配色（浅色=行列背景，中色=当前格，深色=边框/上下表头）
+const HL_COLORS = [
+  {name:"清透浅蓝",   light:"#CCE8FB", mid:"#A8D3F5", dark:"#1a73e8"},
+  {name:"浅薰衣草紫", light:"#E8E4F6", mid:"#CFC6EE", dark:"#6a4fbf"},
+  {name:"薄荷浅青",   light:"#D9F2F7", mid:"#B7E5EC", dark:"#0e9494"},
+  {name:"暖浅杏",     light:"#FFF2D8", mid:"#FFE3B0", dark:"#c47f00"},
+  {name:"沉稳浅蓝",   light:"#DEE9F5", mid:"#BCCBE4", dark:"#3b5b8c"},
+  {name:"淡蜜桃",     light:"#FFF1E6", mid:"#FFD9C2", dark:"#D9825B"},
+  {name:"浅桃奶霜",   light:"#FFF2E8", mid:"#FFDFCB", dark:"#D98A6A"},
+  {name:"浅裸棕",     light:"#F9EBE0", mid:"#E8D3C2", dark:"#A98467"},
+  {name:"浅蜂蜜奶",   light:"#FFF6E8", mid:"#FFE8C7", dark:"#D9A05B"}
+];
+function hlPalette(){ return HL_COLORS.find(c=>c.light===S.hlColor) || HL_COLORS[0]; }
+function hlPalette2(){ return HL_COLORS.find(c=>c.light===S.hlColor2) || HL_COLORS[0]; }
+
+// 默认考勤标记：符号 + 含义（文字显示，如"缺=缺勤"、"差=出差"）
+// 颜色采用苹果系统色系，柔和、大气
+const DEFAULT_MARKS = [
+  {sym:"√", label:"出勤", color:"#34c759"},
+  {sym:"○", label:"轮休", color:"#0a84ff"},
+  {sym:"×", label:"请假", color:"#ff3b30"},
+  {sym:"缺", label:"缺勤", color:"#ff9500"},
+  {sym:"差", label:"出差", color:"#af52de"}
+];
+
+// 颜色色板预设（苹果发布会风格柔和色系）
+const PRESET_COLORS = [
+  "#34c759","#00c7be","#30b0c7","#0a84ff","#5856d6","#af52de",
+  "#ff2d55","#ff3b30","#ff9500","#ffcc00","#ff9f0a","#1c1c1e",
+  "#5e5ce6","#8e8e93","#ff375f","#64d2ff","#ffd60a","#a2845e"
+];
+
+const KEY = "kaoqin_fakuan_v1";
+
+// 默认免打卡人员（高层，不打考勤卡，总表手动维护）。导入打卡记录时自动合并，始终置顶。
+const DEFAULT_NO_PUNCH = [
+  {name:"刘荣峰", department:"高层", group:"C"},
+  {name:"林士松", department:"高层", group:"C"},
+  {name:"刘荣文", department:"高层", group:"D"},
+  {name:"余贵华", department:"高层", group:"C"},
+  {name:"张秀龙", department:"高层", group:"C"},
+  {name:"刘荣敏", department:"高层", group:"C"}
+];
+
+/* ================= 工具 ================= */
+function $(id){ return document.getElementById(id); }
+function fmtMin(m){ m=Math.round(m); return String(Math.floor(m/60)).padStart(2,'0')+":"+String(m%60).padStart(2,'0'); }
+function dateStr(d){ return (d.getMonth()+1)+"."+d.getDate(); }
+function dateKey(d){ return (d.getMonth()+1)+"."+d.getDate(); }
+
+function timesFromCell(v){
+  if(v==null||v==="") return [];
+  const s = String(v);
+  const parts = s.split(/[\n\r]+/);
+  const out = [];
+  for(const p of parts){
+    const m = /^\s*(\d{1,2}):(\d{2})\s*$/.exec(p);
+    if(m){ const h=+m[1], mi=+m[2]; if(h<=23&&mi<=59) out.push(h*60+mi); }
+  }
+  return out;
+}
+
+function parseHM(str){ // "18:00" -> 1080
+  const m = /^(\d{1,2}):(\d{2})$/.exec(str); if(!m) return 0;
+  return (+m[1])*60 + (+m[2]);
+}
+
+/* ================= 解析打卡记录 ================= */
+function parseWorkbook(data){
+  const wb = XLSX.read(data, {type:"array"});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null, blankrows:true});
+  const n = rows.length;
+  const text = (r,c)=> (rows[r]&&rows[r][c]!=null) ? String(rows[r][c]).trim() : "";
+
+  // 起始日期
+  let baseDate = new Date();
+  for(let r=0;r<Math.min(n,6);r++){
+    const row = rows[r]||[];
+    for(let c=0;c<row.length;c++){
+      const m = /(\d{4})-(\d{1,2})-(\d{1,2})\s*[～~\-]\s*\d{4}-\d{1,2}-\d{1,2}/.exec(String(row[c]||""));
+      if(m){ baseDate = new Date(+m[1], +m[2]-1, 1); break; }
+    }
+  }
+
+  const employees = [];
+  let i = 0;
+  while(i < n){
+    if(text(i,4)==="工号：" && text(i,10)==="姓名：" && text(i,22)==="部门："){
+      const id = text(i,5), name = text(i,11), dept = text(i,23);
+      // 日号行
+      const colToDay = {};
+      const dayRow = i+1;
+      if(dayRow < n){
+        for(let c=0;c<(rows[dayRow]||[]).length;c++){
+          const v = rows[dayRow][c];
+          if(typeof v==="number" && v===Math.floor(v) && v>=1 && v<=31) colToDay[c]=v;
+        }
+      }
+      // 刷卡行
+      let j = i+2;
+      while(j < n && !(text(j,4)==="工号：" && text(j,10)==="姓名：" && text(j,22)==="部门：")) j++;
+      const dayTimes = {};
+      for(let r=i+2; r<j; r++){
+        for(const c in colToDay){
+          const ts = timesFromCell(rows[r] && rows[r][c]);
+          if(ts.length){ const day=colToDay[c]; (dayTimes[day]=dayTimes[day]||[]).push(...ts); }
+        }
+      }
+      for(const d in dayTimes) dayTimes[d] = [...new Set(dayTimes[d])].sort((a,b)=>a-b);
+      employees.push({id,name,department:dept,dayTimes,isExternal:false,group:null});
+      i = j;
+    } else i++;
+  }
+  return {employees, baseDate};
+}
+
+/* ================= 日期/周日 ================= */
+function computeSundays(baseDate){
+  const list = [];
+  const d = new Date(baseDate);
+  let cur = new Date(d.getFullYear(), d.getMonth(), 1);
+  while(cur.getMonth()===d.getMonth()){
+    if(cur.getDay()===0) list.push(new Date(cur));
+    cur.setDate(cur.getDate()+1);
+  }
+  return list;
+}
+function dayToDate(day){ return new Date(S.baseDate.getFullYear(), S.baseDate.getMonth(), day); }
+function isRestDate(dateObj){
+  return S.restDays.has(dateKey(dateObj)) || S.holidays.has(dateKey(dateObj));
+}
+// 是否为「手动设置的节假日」（黄色圆圈），区别于自动识别的休息日与周日轮休
+function isHoliday(dateObj){
+  return S.holidays.has(dateKey(dateObj));
+}
+function sundayIndex(dateObj){
+  for(let k=0;k<S.sundays.length;k++) if(dateKey(S.sundays[k])===dateKey(dateObj)) return k+1;
+  return -1;
+}
+function empRestsOnDate(emp, dateObj){
+  const dk = dateKey(dateObj);
+  const dow = dateObj.getDay();
+  if(emp.group==="A") return S.restA.has(dk);   // A 组：休手动指定的日期
+  if(emp.group==="B") return S.restB.has(dk);   // B 组：休手动指定的日期
+  if(emp.group==="C") return S.cDouble ? (dow===0 || dow===6) : (dow===0);  // C 组：单休=周日，双休=周六+周日
+  if(emp.group==="D") return false;             // D 组：不休
+  return false;
+}
+
+// 某部门的下班打卡截止时间（分钟）。优先用「按部门下班时间」设置，缺省回退默认：财务部18:00、其他19:00。
+function deptEveningCut(dept){
+  const cuts = S.params.deptCuts || {};
+  if(cuts[dept]) return parseHM(cuts[dept]);
+  return parseHM(dept==="财务部" ? (S.params.finance||"18:00") : (S.params.other||"19:00"));
+}
+function deptDefaultCut(dept){ return dept==="财务部" ? "18:00" : "19:00"; }
+
+/* ================= 判定某天 ================= */
+function judge(emp, day, skipOv){
+  const times = emp.dayTimes[day] || [];
+  const dateObj = dayToDate(day);
+  const dstr = dateKey(dateObj);
+  const morning = times.filter(t=>t<720);
+  const afternoon = times.filter(t=>t>=720);
+  const dept = emp.department;
+  const eveningCut = deptEveningCut(dept);
+  const morningCut = parseHM(S.params.morning);
+
+  const rec = {date:dstr, name:emp.name, dept, morning: morning.length?Math.min(...morning):null,
+    afternoon, status:"", detail:"", lateMin:0, lateYuan:0,
+    morningAbsent:0, afternoonAbsent:0, earlyMin:0, fullDay:0, verifyable:false};
+
+  // 免打卡人员（高层）：不参与罚款判定，默认全勤，考勤状态在总表里手动维护
+  if(emp.noPunch){ rec.status="正常"; rec.detail="免打卡人员"; return rec; }
+
+  // 全体休息日
+  if(isRestDate(dateObj)){ rec.status="休息"; rec.detail="全体休息日"; return rec; }
+  // 周日轮休
+  if(empRestsOnDate(emp, dateObj)){ rec.status="休息"; rec.detail="轮休"; return rec; }
+
+  // 特殊情况覆盖
+  const ovKey = emp.name+"|"+dstr;
+  if(!skipOv && S.overrides[ovKey]){ rec.status="特殊情况"; rec.detail=S.overrides[ovKey]; return rec; }
+
+  // 无打卡 → 全天缺勤
+  if(!times.length){ rec.status="全天缺勤"; rec.detail="上下班均未打卡"; rec.fullDay=1; rec.verifyable=true; return rec; }
+
+  // 只有上午（有早上卡，无下午卡）
+  if(morning.length && !afternoon.length){
+    const m = Math.min(...morning);
+    const late = m - morningCut;
+    if(late>0){
+      if(late>=S.params.halfMin){ rec.status="上午缺勤"; rec.detail="迟到 "+late+" 分钟（≥"+S.params.halfMin+"分钟，算上午缺勤）"; rec.morningAbsent=1; rec.verifyable=true; }
+      else { rec.status="迟到"; rec.detail="迟到 "+late+" 分钟"; rec.lateMin=late; rec.lateYuan=late*S.params.rate; rec.verifyable=true; }
+    } else {
+      if(emp.isExternal){ rec.status="正常(外勤)"; rec.detail="外勤，不打下班卡"; }
+      else { rec.status="下午缺勤"; rec.detail="早上正常，下午未打下班卡"; rec.afternoonAbsent=1; rec.verifyable=true; }
+    }
+    return rec;
+  }
+
+  // 只有下午（无早上卡，有下午卡）
+  if(!morning.length && afternoon.length){
+    const first = Math.min(...afternoon);
+    const last = Math.max(...afternoon);
+    const afternoonCut = parseHM(S.params.afternoon || "14:00");
+    const afternoonHalfMin = S.params.afternoonHalfMin ?? 30;
+    const afternoonLate = first - afternoonCut;
+
+    let amLeave = false, amAbsent = false, pmAbsent = false, lateMin = 0, lateAbsent = false;
+    if(first <= afternoonCut){
+      amLeave = true; // 下午按时到岗 = 上午请假
+    } else if(afternoonLate >= afternoonHalfMin){
+      amAbsent = true; pmAbsent = true; lateAbsent = true; // 下午迟到≥N = 上下午均缺勤
+    } else {
+      amAbsent = true; lateMin = afternoonLate; // 上午缺勤 + 下午迟到（罚款）
+    }
+    // 下午是否打下班卡
+    if(last < eveningCut && !emp.isExternal){ pmAbsent = true; lateMin = 0; }
+
+    rec.morningAbsent = amAbsent ? 1 : 0;
+    rec.afternoonAbsent = pmAbsent ? 1 : 0;
+    rec.lateMin = lateMin;
+    rec.lateYuan = lateMin * (S.params.afternoonRate != null ? S.params.afternoonRate : S.params.rate);
+
+    if(amAbsent && pmAbsent){
+      rec.status = "上午+下午缺勤";
+      rec.detail = lateAbsent
+        ? ("下午 "+fmtMin(first)+" 到岗，迟到 "+afternoonLate+" 分钟（≥"+afternoonHalfMin+"，上下午均缺勤）")
+        : "上午未打卡、下午未打下班卡";
+    } else if(amAbsent){
+      rec.status = "上午缺勤";
+      rec.detail = "下午 "+fmtMin(first)+" 到岗" + (lateMin ? "，下午迟到 "+lateMin+" 分钟" : "");
+    } else if(pmAbsent){
+      rec.status = "下午缺勤";
+      rec.detail = "上午请假，下午未打下班卡";
+    } else {
+      rec.status = "上午请假";
+      rec.detail = "上午未打卡，下午 "+fmtMin(first)+" 到岗（视为请假）";
+    }
+    rec.verifyable = (amAbsent || pmAbsent || lateMin > 0);
+    return rec;
+  }
+
+  // 上下午都有
+  const m = Math.min(...morning);
+  const last = Math.max(...afternoon);
+  const late = m - morningCut;
+  if(late>0){
+    if(late>=S.params.halfMin){ rec.status="上午缺勤"; rec.detail="迟到 "+late+" 分钟（≥"+S.params.halfMin+"分钟，算上午缺勤）"; rec.morningAbsent=1; rec.verifyable=true; }
+    else { rec.status="迟到"; rec.detail="迟到 "+late+" 分钟"; rec.lateMin=late; rec.lateYuan=late*S.params.rate; rec.verifyable=true; }
+    return rec;
+  }
+  const early = eveningCut - last;
+  if(early>0){
+    rec.status="早退"; rec.detail="早退 "+early+" 分钟（"+fmtMin(last)+" 离开）"; rec.earlyMin=early; rec.verifyable=true;
+    return rec;
+  }
+  rec.status="正常";
+  return rec;
+}
+
+/* ================= 计算 ================= */
+function daysInMonth(){ return new Date(S.baseDate.getFullYear(), S.baseDate.getMonth()+1, 0).getDate(); }
+
+// 生成每日完整判定（遍历当月每一天，含缺勤日），并附带罚款金额
+function computeDaily(){
+  const rows = [];
+  const lastDay = daysInMonth();
+  for(const emp of S.employees){
+    const baseHalf = emp.halfSalary!=null ? emp.halfSalary : 50;
+    for(let day=1; day<=lastDay; day++){
+      const r = judge(emp, day);
+      const ovKey = emp.name+"|"+r.date;
+      const overridden = !!S.overrides[ovKey];
+      // 半天金额：明细里单独改过则用它，否则用该员工半天工资
+      const half = (S.halfOverrides[ovKey] != null) ? S.halfOverrides[ovKey] : baseHalf;
+      const lateYuan = overridden ? 0 : r.lateYuan;
+      const morningAbsent = overridden ? 0 : r.morningAbsent;
+      const afternoonAbsent = overridden ? 0 : r.afternoonAbsent;
+      const earlyMin = overridden ? 0 : r.earlyMin;
+      const fullDay = overridden ? 0 : r.fullDay;
+      const amYuan = morningAbsent * (S.params.fineMorningAbsent ? half : 0);
+      const pmYuan = afternoonAbsent * (S.params.fineAfternoonAbsent ? half : 0);
+      const earlyYuan = earlyMin * (S.params.fineEarly ? S.params.earlyYuan : 0);
+      const fullYuan = fullDay * (half * 2);
+      const total = lateYuan + amYuan + pmYuan + earlyYuan + fullYuan;
+      rows.push({id:emp.id, name:emp.name, dept:emp.department, date:r.date,
+        morning:r.morning, afternoon:r.afternoon, status:r.status, detail:r.detail,
+        lateYuan, morningAbsent, afternoonAbsent, earlyMin, earlyYuan, fullDay, total,
+        amYuan, pmYuan, fullYuan, half, verifyable:r.verifyable, overridden});
+    }
+  }
+  return rows;
+}
+
+function computeAll(){
+  const daily = computeDaily();
+  const detail = [];
+  const byName = {};
+  for(const r of daily){
+    if(r.status==="休息"||r.status==="正常"||r.status==="正常(外勤)"||r.status==="上午请假"||r.status==="特殊情况") continue;
+    if(r.overridden) continue;
+    detail.push(r);
+    const k = r.name+"|"+r.dept;
+    if(!byName[k]) byName[k]={name:r.name, dept:r.dept, late:0, am:0, amYuan:0, pm:0, pmYuan:0, early:0, fullDay:0, fullYuan:0, total:0, count:0};
+    byName[k].count++;
+    byName[k].late += r.lateYuan;
+    byName[k].am += r.morningAbsent;
+    byName[k].amYuan += r.amYuan;
+    byName[k].pm += r.afternoonAbsent;
+    byName[k].pmYuan += r.pmYuan;
+    byName[k].early += r.earlyYuan;
+    byName[k].fullDay += r.fullDay;
+    byName[k].fullYuan += r.fullYuan;
+    byName[k].total += r.total;
+  }
+  const summary = Object.values(byName).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+  return {detail, summary};
+}
+
+// 列出所有已核实（overrides）的记录，供「已核实」tab 撤销
+function computeVerified(){
+  const out = [];
+  const lastDay = daysInMonth();
+  for(const emp of S.employees){
+    for(let day=1; day<=lastDay; day++){
+      const dstr = dateKey(dayToDate(day));
+      const ovKey = emp.name+"|"+dstr;
+      if(!S.overrides[ovKey]) continue;
+      const r = judge(emp, day, true); // 还原原始判定（忽略覆盖）
+      out.push({name:emp.name, dept:emp.department, date:dstr, status:r.status, detail:r.detail, reason:S.overrides[ovKey], ovKey});
+    }
+  }
+  out.sort((a,b)=> a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
+  return out;
+}
+
+/* ================= 考勤总表 ================= */
+const ATT_COLS = [
+  {key:"present", label:"出勤"},
+  {key:"leave",   label:"请假"},
+  {key:"fine",    label:"扣款"},
+  {key:"overtime",label:"加班"},
+  {key:"lunch",   label:"午餐"},
+  {key:"trip",    label:"出差"}
+];
+const SYM_CLS = {"○":"sym-rest","×":"sym-leave","差":"sym-trip","√":"sym-present","缺":"sym-absent"};
+// 免打卡人员格子点击循环切换顺序（动态：跟随自定义标记）
+function markSyms(){ return (S.marks && S.marks.length ? S.marks : DEFAULT_MARKS).map(m=>m.sym); }
+function cycleSym(cur){ const arr = markSyms(); const i = arr.indexOf(cur); return arr[(i+1)%arr.length]; }
+// 符号颜色：优先取自定义标记颜色，否则回退内置颜色
+function symColor(sym){
+  const m = (S.marks && S.marks.length ? S.marks : DEFAULT_MARKS).find(x=>x.sym===sym);
+  if(m) return m.color;
+  return SYM_COLOR[sym] || "#1a1d23";
+}
+// 格子颜色：节假日（手动设置）用黄色圆圈
+function cellColor(sym, holiday){ return (holiday && sym==="○") ? "#e6a700" : symColor(sym); }
+const WD = ["日","一","二","三","四","五","六"];
+
+function fmtDay(v){
+  if(v==null || v===0) return "";
+  const r = Math.round(v*10)/10;
+  return (r===Math.floor(r)) ? String(Math.floor(r)) : String(r);
+}
+
+// 某员工某天 上午/下午 分别的考勤状态（复用 judge 判定，保证与罚款口径一致）
+function attendanceCell(emp, day){
+  const dateObj = dayToDate(day);
+  const dstr = dateKey(dateObj);
+  const ovKey = emp.name+"|"+dstr;
+  const ov = S.overrides[ovKey] || "";
+
+  // 免打卡人员（高层）：默认全勤，周日（C组）休息，手动覆盖优先
+  if(emp.noPunch){
+    const mk = emp.name+"|"+dstr;
+    const man = S.attManual[mk];
+    let am, pm;
+    if(ov){
+      if(ov.indexOf("请假")>=0){ am="×"; pm="×"; }
+      else if(ov.indexOf("出差")>=0){ am="差"; pm="差"; }
+      else if(ov.indexOf("休息")>=0 || ov.indexOf("调休")>=0){ am="○"; pm="○"; }
+      else { am="√"; pm="√"; }
+    } else if(man){ am = man.am; pm = man.pm; }
+    else if(isRestDate(dateObj) || empRestsOnDate(emp, dateObj)){ am="○"; pm="○"; }
+    else { am="√"; pm="√"; }
+    return {date:dstr, day, am, pm, holiday:isHoliday(dateObj),
+      amPresent: (am==="√"||am==="差") ? 0.5 : 0,
+      pmPresent: (pm==="√"||pm==="差") ? 0.5 : 0,
+      amLeave: (am==="×") ? 0.5 : 0,
+      pmLeave: (pm==="×") ? 0.5 : 0,
+      trip: (am==="差"?0.5:0) + (pm==="差"?0.5:0),
+      overtime:false};
+  }
+
+  const r = judge(emp, day);
+  const afternoon = r.afternoon;
+  // 总表手动覆盖（所有人点击格子后写入，优先级最高，且不自动回写罚款明细）
+  const man2 = S.attManual[emp.name+"|"+dstr];
+
+  let am = "", pm = "", rest = false;
+  if(man2){
+    am = man2.am; pm = man2.pm;
+    rest = (am==="○" && pm==="○");
+  } else if(r.status === "休息"){
+    rest = true; am = "○"; pm = "○";
+  } else if(ov){
+    if(ov.indexOf("请假")>=0){ am="×"; pm="×"; }
+    else if(ov.indexOf("出差")>=0){ am="差"; pm="差"; }
+    else if(ov.indexOf("休息")>=0 || ov.indexOf("调休")>=0){ rest=true; am="○"; pm="○"; }
+    else { am="√"; pm="√"; } // 送货/收货/发货/情有可原/正常上班 → 出勤
+  } else {
+    // 上午
+    if(r.fullDay){ am = "缺"; }
+    else if(r.morningAbsent){ am = "缺"; }
+    else if(r.status === "上午请假"){ am = "×"; }
+    else if(r.morning != null){ am = "√"; }
+    else { am = "缺"; }
+    // 下午
+    if(r.fullDay){ pm = "缺"; }
+    else if(r.afternoonAbsent){ pm = "缺"; }
+    else if(afternoon.length){ pm = "√"; }
+    else if(r.morning != null){ pm = emp.isExternal ? "√" : "缺"; }
+    else { pm = "缺"; }
+  }
+
+  const last = afternoon.length ? Math.max(...afternoon) : null;
+  const present = (am==="√" || pm==="√");
+  const overtime = !!S.params.overtimeEnabled && present && last!=null && last >= parseHM(S.params.overtime||"20:00");
+
+  return {
+    date:dstr, day, am, pm, holiday:isHoliday(dateObj),
+    amPresent: (am==="√"||am==="差") ? 0.5 : 0,
+    pmPresent: (pm==="√"||pm==="差") ? 0.5 : 0,
+    amLeave: (am==="×") ? 0.5 : 0,
+    pmLeave: (pm==="×") ? 0.5 : 0,
+    trip: (am==="差"?0.5:0) + (pm==="差"?0.5:0),
+    overtime
+  };
+}
+
+// 免打卡人员置顶，正常员工保持原顺序
+function orderedEmployees(){
+  const noPunch = S.employees.filter(e=>e.noPunch);
+  const normal = S.employees.filter(e=>!e.noPunch);
+  return [...noPunch, ...normal];
+}
+
+function computeAttendance(){
+  const lastDay = daysInMonth();
+  const fineMap = {};
+  computeDaily().forEach(r=>{ if(r.total>0) fineMap[r.name+"|"+r.date] = true; });
+
+  const list = [];
+  for(const emp of orderedEmployees()){
+    const cells = [];
+    let present=0, leave=0, fine=0, overtime=0, trip=0;
+    for(let day=1; day<=lastDay; day++){
+      const c = attendanceCell(emp, day);
+      cells.push(c);
+      present += c.amPresent + c.pmPresent;
+      leave += c.amLeave + c.pmLeave;
+      trip += c.trip;
+      if(c.overtime) overtime++;
+      if(fineMap[emp.name+"|"+c.date]) fine++;
+    }
+    list.push({id:emp.id, name:emp.name, dept:emp.department, cells, noPunch:emp.noPunch,
+      present, leave, fine, overtime, lunch:0, trip});
+  }
+  return list;
+}
+
+/* ================= 出差登记表 ================= */
+function computeTrip(){
+  const lastDay = daysInMonth();
+  const map = new Map();
+  for(const emp of S.employees){
+    for(let day=1; day<=lastDay; day++){
+      const dstr = dateKey(dayToDate(day));
+      const ovKey = emp.name+"|"+dstr;
+      const ov = S.overrides[ovKey] || "";
+      const man = S.attManual[ovKey];
+      // 出差来源：罚款明细/登记里核实的「出差」，或总表手动标的「差」
+      const isTrip = ov.indexOf("出差")>=0 || (man && (man.am==="差" || man.pm==="差"));
+      if(isTrip){
+        if(!map.has(emp.name)) map.set(emp.name, {name:emp.name, dept:emp.department, dates:[]});
+        map.get(emp.name).dates.push(day);
+      }
+    }
+  }
+  const list = [...map.values()].filter(x=>x.dates.length);
+  list.sort((a,b)=> a.name.localeCompare(b.name, "zh"));
+  return list;
+}
+
+/* ================= 总表修改 → 手动同步到罚款明细 ================= */
+// 把考勤总表里的手动覆盖（S.attManual）转换成罚款明细的核实覆盖（S.overrides）
+function syncAttToDetail(){
+  // 预计算"原本有罚款"的天，用于判断「√」是否要写成「正常上班(误报)」
+  const fineMap = {};
+  computeDaily().forEach(r=>{ if(r.total>0) fineMap[r.name+"|"+r.date] = true; });
+
+  let n = 0;
+  const marks = (S.marks && S.marks.length) ? S.marks : DEFAULT_MARKS;
+  for(const mk in S.attManual){
+    const c = S.attManual[mk];
+    if(!c) continue;
+    const am = c.am, pm = c.pm;
+    let reason = null;
+    if(am==="缺" || pm==="缺"){
+      reason = "";   // 缺勤：恢复原判定（该罚就罚）
+    } else if(am==="差" || pm==="差"){
+      reason = "出差";
+    } else if(am==="×" || pm==="×"){
+      reason = "请假";
+    } else if(am==="○" || pm==="○"){
+      reason = "休息日/调休";
+    } else {
+      // 只剩「√」或自定义符号
+      const sym = (am!=="√") ? am : pm;
+      if(sym && sym!=="√"){
+        const m = marks.find(x=>x.sym===sym);
+        reason = m ? m.label : null;
+      } else if(fineMap[mk]){
+        reason = "正常上班(误报)";
+      } else {
+        // 全√且原本无罚款：无效覆盖，清理
+        delete S.attManual[mk];
+        continue;
+      }
+    }
+    if(reason === ""){
+      delete S.overrides[mk];
+      n++;
+    } else if(reason){
+      S.overrides[mk] = reason;
+      n++;
+    }
+  }
+  savePersist();
+  render();
+  return n;
+}
+
+/* ================= 撤销 ================= */
+function pushUndo(label){
+  // 快照当前可变状态：覆盖记录 + 员工可变字段（dayTimes 导入后不再改，共享引用即可）
+  S.undoStack.push({
+    label,
+    overrides: {...S.overrides},
+    halfOverrides: {...S.halfOverrides},
+    employees: S.employees.map(e=>({...e, dayTimes: e.dayTimes})),
+    attManual: JSON.parse(JSON.stringify(S.attManual||{})),
+    tripRemarks: {...S.tripRemarks},
+    tripPlaces: {...S.tripPlaces},
+    holidays: [...S.holidays],
+    marks: JSON.parse(JSON.stringify(S.marks||[]))
+  });
+  if(S.undoStack.length>50) S.undoStack.shift();
+}
+function undo(){
+  if(!S.undoStack.length){ alert("没有可撤销的操作"); return; }
+  const s = S.undoStack.pop();
+  S.overrides = s.overrides;
+  S.halfOverrides = s.halfOverrides;
+  S.employees = s.employees;
+  if(s.attManual!==undefined) S.attManual = s.attManual;
+  if(s.tripRemarks!==undefined) S.tripRemarks = s.tripRemarks;
+  if(s.tripPlaces!==undefined) S.tripPlaces = s.tripPlaces;
+  if(s.holidays!==undefined) S.holidays = new Set(s.holidays);
+  if(s.marks!==undefined) S.marks = s.marks;
+  render();
+}
+
+/* ================= 干净的罚款明细（用于导出） ================= */
+function buildCleanDetail(){
+  const {detail} = computeAll();
+  const groups = new Map();
+  detail.forEach(d=>{
+    const k = d.name+"|"+d.dept;
+    if(!groups.has(k)) groups.set(k, {name:d.name, dept:d.dept, items:[]});
+    groups.get(k).items.push(d);
+  });
+  const list = [];
+  groups.forEach(g=>{ g.total = g.items.reduce((a,b)=>a+b.total,0); list.push(g); });
+  // 按罚款金额降序，便于财务优先看到高罚款的人
+  list.sort((a,b)=>b.total-a.total);
+  return {
+    list,
+    totalYuan: list.reduce((a,b)=>a+b.total,0),
+    totalCount: list.reduce((a,b)=>a+b.items.length,0)
+  };
+}
+
+function badgeStyle(status){
+  if(status.indexOf("迟到")>=0) return {c:"#2563eb", b:"#eef4ff", t:status};
+  if(status.indexOf("早退")>=0) return {c:"#e88a1a", b:"#fdf3e5", t:status};
+  if(status.indexOf("缺勤")>=0) return {c:"#e5484d", b:"#fdecec", t:status};
+  return {c:"#12a150", b:"#e9f7ef", t:status};
+}
+
+function buildPrintHTML(){
+  const {list, totalYuan, totalCount} = buildCleanDetail();
+  const y = S.baseDate.getFullYear(), m = S.baseDate.getMonth()+1;
+  const peopleN = list.length;
+
+  const cards = list.map(g=>{
+    const rows = g.items.map(d=>{
+      const b = badgeStyle(d.status);
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f2f6">${d.date}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f2f6"><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;background:${b.b};color:${b.c}">${esc(b.t)}</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f2f6;color:#5a6370">${esc(d.detail)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f2f6;text-align:right;color:#e5484d;font-weight:600">¥${d.total}</td>
+      </tr>`;
+    }).join("");
+    return `<div style="border:1px solid #e7eaf0;border-radius:12px;margin-bottom:14px;overflow:hidden;page-break-inside:avoid">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 16px;background:#fafbfc;border-bottom:1px solid #f0f2f6">
+        <span style="font-size:14px;font-weight:700">${esc(g.name)}<span style="font-size:12px;font-weight:500;color:#7a828e;margin-left:6px">${esc(g.dept)}</span></span>
+        <span style="font-size:13px;color:#7a828e">罚款 <b style="font-size:15px">${g.items.length}</b> 条 · 合计 <b style="font-size:15px;color:#e5484d">¥${g.total}</b></span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="text-align:left;padding:8px 12px;color:#7a828e;font-weight:600;background:#fff;border-bottom:1px solid #f0f2f6">日期</th>
+          <th style="text-align:left;padding:8px 12px;color:#7a828e;font-weight:600;background:#fff;border-bottom:1px solid #f0f2f6">类型</th>
+          <th style="text-align:left;padding:8px 12px;color:#7a828e;font-weight:600;background:#fff;border-bottom:1px solid #f0f2f6">说明</th>
+          <th style="text-align:right;padding:8px 12px;color:#7a828e;font-weight:600;background:#fff;border-bottom:1px solid #f0f2f6">罚款</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+
+  const summaryBar = `
+    <div style="display:flex;gap:12px;justify-content:center;margin:16px 0 20px">
+      <div style="background:#fff;border-radius:12px;padding:12px 24px;text-align:center;box-shadow:0 2px 10px rgba(20,30,50,.06)">
+        <div style="font-size:22px;font-weight:700;color:#e5484d">¥${totalYuan}</div>
+        <div style="font-size:12px;color:#7a828e;margin-top:2px">罚款总额</div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:12px 24px;text-align:center;box-shadow:0 2px 10px rgba(20,30,50,.06)">
+        <div style="font-size:22px;font-weight:700;color:#2563eb">${peopleN}</div>
+        <div style="font-size:12px;color:#7a828e;margin-top:2px">涉及人数</div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:12px 24px;text-align:center;box-shadow:0 2px 10px rgba(20,30,50,.06)">
+        <div style="font-size:22px;font-weight:700;color:#2563eb">${totalCount}</div>
+        <div style="font-size:12px;color:#7a828e;margin-top:2px">违规条数</div>
+      </div>
+    </div>`;
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>考勤罚款明细</title>
+<style>
+  @page{size:A4;margin:14mm}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;color:#1a1d23;background:#fff;padding:10px;font-size:14px;line-height:1.6}
+  h1{text-align:center;font-size:20px;font-weight:700;margin:6px 0 2px}
+  .sub{text-align:center;font-size:12px;color:#7a828e;margin-bottom:8px}
+  @media print{body{padding:0}}
+</style>
+</head>
+<body>
+<h1>${y} 年 ${m} 月 考勤罚款明细</h1>
+<div class="sub">按个人汇总 · 仅含违规且有罚款的记录</div>
+${summaryBar}
+${cards}
+<div style="text-align:center;color:#7a828e;font-size:12px;margin-top:18px">本明细由考勤罚款统计工具自动生成</div>
+</body>
+</html>`;
+}
+
+function exportPDF(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const html = buildPrintHTML();
+  const w = window.open("", "_blank");
+  if(!w){ alert("浏览器拦截了弹窗，请允许本站弹出窗口后重试。"); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 400);
+}
+
+function exportDetailExcel(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const {list, totalYuan, totalCount} = buildCleanDetail();
+  const y = S.baseDate.getFullYear(), m = S.baseDate.getMonth()+1;
+  const wb = XLSX.utils.book_new();
+
+  // 罚款明细（按人分组，干净）
+  const rows = [[`${y}年${m}月 考勤罚款明细`, "", "", "", "", ""]];
+  rows.push(["姓名","部门","日期","类型","说明","罚款(元)"]);
+  list.forEach(g=>{
+    g.items.forEach((d,i)=>{
+      rows.push([i===0?g.name:"", i===0?g.dept:"", d.date, d.status, d.detail, d.total]);
+    });
+    rows.push(["", "", "", "", `${g.name} 小计：${g.items.length} 条`, g.total]);
+  });
+  rows.push(["", "", "", "", "全体合计", totalYuan]);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:10},{wch:10},{wch:8},{wch:10},{wch:42},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, "罚款明细");
+
+  // 个人汇总
+  const sumRows = [["姓名","部门","罚款条数","罚款合计(元)"]];
+  list.forEach(g=>sumRows.push([g.name,g.dept,g.items.length,g.total]));
+  sumRows.push(["全体合计","",totalCount,totalYuan]);
+  const ws2 = XLSX.utils.aoa_to_sheet(sumRows);
+  ws2["!cols"] = [{wch:12},{wch:12},{wch:10},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws2, "个人汇总");
+
+  XLSX.writeFile(wb, `考勤罚款明细_${y}-${String(m).padStart(2,'0')}.xlsx`);
+}
+
+/* ================= 导出中心调度 ================= */
+function runExport(exp){
+  const fns = {
+    "detail-excel": exportDetailExcel, "detail-pdf": exportPDF,
+    "summary-excel": exportSummaryExcel, "summary-pdf": exportSummaryPDF,
+    "att-excel": exportAttendanceExcel, "att-pdf": exportAttendancePDF,
+    "trip-excel": exportTripExcel, "trip-pdf": exportTripPDF
+  };
+  const fn = fns[exp];
+  if(fn){ try{ fn(); }catch(err){ alert("导出失败："+err.message); } }
+}
+
+function openPrintWindow(html){
+  const w = window.open("", "_blank");
+  if(!w){ alert("浏览器拦截了弹窗，请允许本站弹出窗口后重试。"); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 400);
+}
+
+function ym(){ return {y:S.baseDate.getFullYear(), m:S.baseDate.getMonth()+1}; }
+
+/* ---------- 个人汇总 ---------- */
+function exportSummaryExcel(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const {summary} = computeAll();
+  const {y,m} = ym();
+  const wb = XLSX.utils.book_new();
+  const rows = [["姓名","部门","迟到(元)","上午缺勤(元)","下午缺勤(元)","早退(元)","全天缺勤(元)","罚款合计(元)"]];
+  summary.forEach(s=>rows.push([s.name,s.dept,s.late,s.amYuan,s.pmYuan,s.early,s.fullYuan,s.total]));
+  const totalYuan = summary.reduce((a,b)=>a+b.total,0);
+  const totalLate = summary.reduce((a,b)=>a+b.late,0);
+  const totalAm = summary.reduce((a,b)=>a+b.amYuan,0);
+  const totalPm = summary.reduce((a,b)=>a+b.pmYuan,0);
+  const totalEarly = summary.reduce((a,b)=>a+b.early,0);
+  const totalFull = summary.reduce((a,b)=>a+b.fullYuan,0);
+  rows.push(["合计","",totalLate,totalAm,totalPm,totalEarly,totalFull,totalYuan]);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:12},{wch:12},{wch:10},{wch:12},{wch:12},{wch:10},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, "个人罚款汇总");
+  XLSX.writeFile(wb, `个人罚款汇总_${y}-${String(m).padStart(2,'0')}.xlsx`);
+}
+function exportSummaryPDF(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const {summary} = computeAll();
+  const {y,m} = ym();
+  const totalYuan = summary.reduce((a,b)=>a+b.total,0);
+  const rows = summary.map(s=>`<tr>
+    <td>${esc(s.name)}</td><td>${esc(s.dept)}</td>
+    <td>${s.late||""}</td><td>${s.amYuan||""}</td><td>${s.pmYuan||""}</td>
+    <td>${s.early||""}</td><td>${s.fullYuan||""}</td>
+    <td style="color:#e5484d;font-weight:600">¥${s.total}</td></tr>`).join("");
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>个人罚款汇总</title>
+<style>@page{size:A4;margin:16mm}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#1a1d23;padding:8px;font-size:14px}
+h1{text-align:center;font-size:20px;margin:6px 0 2px}.sub{text-align:center;color:#7a828e;font-size:12px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #e2e6ee;padding:7px 10px;text-align:center}
+th{background:#fafbfc;color:#7a828e;font-weight:600}td.name{text-align:left}
+.tot{font-weight:700;background:#fafbfc}</style></head><body>
+<h1>${y} 年 ${m} 月 个人罚款汇总</h1><div class="sub">只显示有罚款的员工</div>
+<table><thead><tr><th>姓名</th><th>部门</th><th>迟到(元)</th><th>上午缺勤(元)</th><th>下午缺勤(元)</th><th>早退(元)</th><th>全天缺勤(元)</th><th>罚款合计(元)</th></tr></thead>
+<tbody>${rows}<tr class="tot"><td colspan="2">合计</td><td>${summary.reduce((a,b)=>a+b.late,0)}</td><td>${summary.reduce((a,b)=>a+b.amYuan,0)}</td><td>${summary.reduce((a,b)=>a+b.pmYuan,0)}</td><td>${summary.reduce((a,b)=>a+b.early,0)}</td><td>${summary.reduce((a,b)=>a+b.fullYuan,0)}</td><td style="color:#e5484d">¥${totalYuan}</td></tr></tbody></table>
+</body></html>`;
+  openPrintWindow(html);
+}
+
+/* ---------- 考勤总表 ---------- */
+function attendanceGrid(){ // 返回 {data, visCols, lastDay}
+  const data = computeAttendance();
+  const lastDay = daysInMonth();
+  const visCols = ATT_COLS.filter(c=>getAttCols()[c.key]);
+  return {data, visCols, lastDay};
+}
+function attSym(cell, half){ const s = half==="am"?cell.am:cell.pm; return {s, cls:SYM_CLS[s]||""}; }
+function exportAttendanceExcel(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const {data, visCols, lastDay} = attendanceGrid();
+  const {y,m} = ym();
+  const wb = XLSX.utils.book_new();
+  const head = ["序号","姓名"];
+  for(let d=1;d<=lastDay;d++){ head.push(d+"上", d+"下"); }
+  visCols.forEach(c=>head.push(c.label));
+  const rows = [head];
+  data.forEach((p,idx)=>{
+    const r = [idx+1, p.name];
+    p.cells.forEach(c=>{ r.push(c.am, c.pm); });
+    visCols.forEach(c=>r.push(p[c.key]));
+    rows.push(r);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "考勤总表");
+  XLSX.writeFile(wb, `考勤总表_${y}-${String(m).padStart(2,'0')}.xlsx`);
+}
+function exportAttendancePDF(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const {data, visCols, lastDay} = attendanceGrid();
+  const {y,m} = ym();
+  const legend = (S.marks && S.marks.length ? S.marks : DEFAULT_MARKS).map(m=>`${m.sym}=${m.label}`).join(" · ");
+  let h1 = `<tr><th rowspan="3" style="width:26px">序号</th><th rowspan="3" style="width:54px">姓名</th>`;
+  let h2 = `<tr>`, h3 = `<tr>`;
+  for(let d=1;d<=lastDay;d++){
+    const wd = WD[dayToDate(d).getDay()];
+    h1 += `<th colspan="2">${d}</th>`;
+    h2 += `<th colspan="2" style="font-size:9px;font-weight:400">${wd}</th>`;
+    h3 += `<th style="font-size:9px;font-weight:400">上</th><th style="font-size:9px;font-weight:400">下</th>`;
+  }
+  visCols.forEach(c=>h1 += `<th rowspan="3">${c.label}</th>`);
+  h1 += `</tr>`; h2 += `</tr>`; h3 += `</tr>`;
+  const body = data.map((p,idx)=>{
+    let cells = "";
+    p.cells.forEach(c=>{
+      const wk = dayToDate(c.day).getDay()===0;
+      const bg = wk ? 'style="background:#f7f9fc"' : "";
+      cells += `<td ${bg} style="color:${cellColor(c.am,c.holiday)}">${c.am}</td><td ${bg} style="color:${cellColor(c.pm,c.holiday)}">${c.pm}</td>`;
+    });
+    const stats = visCols.map(c=>`<td>${fmtDay(p[c.key])}</td>`).join("");
+    const nameTd = `<td style="text-align:left">${esc(p.name)}</td>`;
+    return `<tr><td>${idx+1}</td>${nameTd}${cells}${stats}</tr>`;
+  }).join("");
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>考勤总表</title>
+<style>@page{size:A4 landscape;margin:10mm}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#1a1d23;padding:4px;font-size:11px}
+h1{text-align:center;font-size:17px;margin:4px 0 2px}.sub{text-align:center;color:#7a828e;font-size:11px;margin-bottom:8px}
+table{border-collapse:collapse;font-size:10px}th,td{border:1px solid #d8dde6;padding:2px 3px;text-align:center}
+th{background:#fafbfc;color:#7a828e;font-weight:600}</style></head><body>
+<h1>${y} 年 ${m} 月 考勤总表</h1><div class="sub">${legend}</div>
+<table><thead>${h1}${h2}${h3}</thead><tbody>${body}</tbody></table></body></html>`;
+  openPrintWindow(html);
+}
+const SYM_COLOR = {"○":"#2563eb","×":"#e5484d","差":"#7c3aed","√":"#12a150","缺":"#e88a1a"};
+
+/* ---------- 出差登记表 ---------- */
+function exportTripExcel(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const list = computeTrip();
+  const {y,m} = ym();
+  const wb = XLSX.utils.book_new();
+  const rows = [["出差地","出差人员","出差日期","备注"]];
+  list.forEach(t=>rows.push([S.tripPlaces[t.name]||"", t.name, t.dates.join(","), S.tripRemarks[t.name]||""]));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:18},{wch:12},{wch:40},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws, "出差登记表");
+  XLSX.writeFile(wb, `出差登记表_${y}-${String(m).padStart(2,'0')}.xlsx`);
+}
+function exportTripPDF(){
+  if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+  const list = computeTrip();
+  const {y,m} = ym();
+  const rows = list.map(t=>`<tr><td>${esc(S.tripPlaces[t.name]||"")}</td><td>${esc(t.name)}<span style="color:#7a828e;font-size:11px"> ${esc(t.dept)}</span></td><td>${t.dates.join("、")}</td><td style="white-space:normal">${esc(S.tripRemarks[t.name]||"")}</td></tr>`).join("");
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>出差登记表</title>
+<style>@page{size:A4;margin:16mm}body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#1a1d23;padding:8px;font-size:14px}
+h1{text-align:center;font-size:20px;margin:6px 0 2px}.sub{text-align:center;color:#7a828e;font-size:12px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #e2e6ee;padding:8px 10px;text-align:left}
+th{background:#fafbfc;color:#7a828e;font-weight:600}</style></head><body>
+<h1>${y} 年 ${m} 月 出差登记表</h1><div class="sub">按人员汇总出差日期（出差地、备注请补充填写）</div>
+<table><thead><tr><th style="width:18%">出差地</th><th style="width:18%">出差人员</th><th>出差日期</th><th style="width:26%">备注</th></tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#7a828e">暂无出差记录</td></tr>'}</tbody></table></body></html>`;
+  openPrintWindow(html);
+}
+
+/* ================= 渲染 ================= */
+let currentTab = "all";
+function render(){
+  if(!S.employees.length){ $("empty").classList.remove("hidden"); $("main").classList.add("hidden"); return; }
+  $("empty").classList.add("hidden"); $("main").classList.remove("hidden");
+
+  // 概览
+  const external = S.employees.filter(e=>e.isExternal);
+  const hasData = S.employees.filter(e=>Object.keys(e.dayTimes).length>0).length;
+  $("statbar").innerHTML = `
+    <div class="stat"><div class="num">${S.employees.length}</div><div class="label">员工总数</div></div>
+    <div class="stat"><div class="num">${hasData}</div><div class="label">有打卡数据</div></div>
+    <div class="stat"><div class="num">${external.length}</div><div class="label">外勤/送货</div></div>
+    <div class="stat"><div class="num">${S.sundays.length}</div><div class="label">本月周日</div></div>`;
+
+  // 周日说明 + A/B 组轮休
+  const sList = S.sundays.map(dateStr).join("、") || "无";
+  const aList = S.sundays.filter(d=>S.restA.has(dateKey(d))).map(dateStr).join("、") || "无";
+  const bList = S.sundays.filter(d=>S.restB.has(dateKey(d))).map(dateStr).join("、") || "无";
+  $("sundayInfo").innerHTML = `本月周日：<b>${sList}</b>`;
+  $("aRest").textContent = aList;
+  $("bRest").textContent = bList;
+  renderRestPicker();
+  updateCGroupBtn();
+
+  renderDeptCuts();
+  renderEmployees();
+  renderResults();
+  renderHolidays();
+  renderMarks();
+  renderHlColors();
+  renderAttendance();
+  renderTrip();
+  savePersist();
+  if(window.highlightToc) requestAnimationFrame(window.highlightToc);
+}
+
+function renderEmployees(){
+  $("empCount").textContent = S.employees.length+" 人";
+  const tbody = $("empTable").querySelector("tbody");
+  tbody.innerHTML = "";
+  orderedEmployees().forEach(emp=>{
+    const idx = S.employees.indexOf(emp);
+    const tr = document.createElement("tr");
+    const exOn = emp.isExternal ? "on" : "";
+    const npOn = emp.noPunch ? "on" : "";
+    const g = emp.group||"";
+    const hs = emp.halfSalary!=null ? emp.halfSalary : 50;
+    tr.innerHTML = `
+      <td class="${emp.noPunch?'np-name':''}">${esc(emp.name)}${emp.noPunch?' <span class="np-tag">免打卡</span>':''}${emp.id?` <span style="color:var(--text2)">(${esc(emp.id)})</span>`:""}</td>
+      <td><div class="switch ${npOn}" data-act="np" data-i="${idx}" title="免打卡人员（高层，不打卡，总表手动维护）"></div></td>
+      <td><input type="number" class="half-sal" data-i="${idx}" value="${hs}" min="0" step="0.5"></td>
+      <td>${esc(emp.department)}</td>
+      <td><div class="switch ${exOn}" data-act="ex" data-i="${idx}"></div></td>
+      <td>
+        <select class="verify" data-act="grp" data-i="${idx}">
+          <option value="X" ${g===""?"selected":""}>不休</option>
+          <option value="A" ${g==="A"?"selected":""}>A 组</option>
+          <option value="B" ${g==="B"?"selected":""}>B 组</option>
+          <option value="C" ${g==="C"?"selected":""}>C 组(每周日休)</option>
+          <option value="D" ${g==="D"?"selected":""}>D 组(不休)</option>
+        </select>
+      </td>
+      <td><button class="btn-mini del" data-act="del" data-i="${idx}" title="删除">删</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderResults(){
+  const {detail, summary} = computeAll();
+  const totalYuan = summary.reduce((a,b)=>a+b.total,0);
+  const totalLate = summary.reduce((a,b)=>a+b.late,0);
+  const totalAm = summary.reduce((a,b)=>a+b.amYuan,0);
+  const totalPm = summary.reduce((a,b)=>a+b.pmYuan,0);
+  const totalEarly = summary.reduce((a,b)=>a+b.early,0);
+  const totalFull = summary.reduce((a,b)=>a+b.fullYuan,0);
+  const pending = detail.filter(d=>d.verifyable).length;
+
+  $("summaryGrid").innerHTML = `
+    <div class="scard"><div class="v red">¥${totalYuan}</div><div class="k">罚款总金额</div></div>
+    <div class="scard"><div class="v">${summary.length}</div><div class="k">有罚款人数</div></div>
+    <div class="scard"><div class="v" style="color:#e67700">${pending}</div><div class="k">待核实</div></div>
+    <div class="scard"><div class="v red">¥${totalLate}</div><div class="k">迟到罚款</div></div>
+    <div class="scard"><div class="v">¥${totalAm}</div><div class="k">上午缺勤</div></div>
+    <div class="scard"><div class="v">¥${totalPm}</div><div class="k">下午缺勤</div></div>
+    <div class="scard"><div class="v">¥${totalEarly}</div><div class="k">早退</div></div>
+    <div class="scard"><div class="v">¥${totalFull}</div><div class="k">全天缺勤</div></div>`;
+
+  // 明细：按人分组展示
+  const list = $("detailList");
+  list.innerHTML = "";
+  // 已核实 tab：列出所有已免罚记录，可一键撤销
+  if(currentTab === "verified"){
+    renderVerifiedList(list);
+  } else {
+    const filtered = detail.filter(d=>{
+      if(currentTab==="all") return true;
+      if(currentTab==="late") return d.status==="迟到";
+      if(currentTab==="early") return d.status==="早退";
+      if(currentTab==="nopunch") return d.status.indexOf("缺勤")>=0 && d.status!=="全天缺勤";
+      if(currentTab==="absent") return d.status==="全天缺勤";
+      return true;
+    });
+
+    if(!filtered.length){
+      list.innerHTML = `<div class="empty-tip">当前分类没有罚款记录 🎉</div>`;
+    } else {
+      // 按人分组（保持 detail 原始顺序：按员工、每人按日期）
+      const groups = new Map();
+      filtered.forEach(d=>{
+        const k = d.name+"|"+d.dept;
+        if(!groups.has(k)) groups.set(k, {name:d.name, dept:d.dept, items:[], total:0});
+        const g = groups.get(k);
+        g.items.push(d);
+        g.total += d.total;
+      });
+
+      groups.forEach(g=>{
+        const card = document.createElement("div");
+        card.className = "person-card";
+        const pendingN = g.items.filter(d=>d.verifyable).length;
+        const rows = g.items.map(d=>{
+          const enabled = d.total>0;
+          const ovKey = d.name+"|"+d.date;
+          const curOv = S.overrides[ovKey] || "";
+          const badgeCls = d.status.indexOf("迟到")>=0 ? "a" : (d.status.indexOf("早退")>=0 || d.status.indexOf("缺勤")>=0) ? "ex" : "b";
+          const isAbsent = d.status.indexOf("缺勤")>=0;
+          // 缺勤类：半天金额可直接改；迟到/早退：固定金额
+          const moneyCell = isAbsent
+            ? `<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;flex-wrap:wrap">
+                <input type="number" class="half-amt" data-ovkey="${esc(ovKey)}" value="${d.half}" min="0" step="0.5" style="width:56px"> 元/半天
+                <span class="money" style="font-size:11px">= ¥${d.total}</span>
+              </div>`
+            : (enabled ? '<span class="money">¥'+d.total+'</span>' : '<span class="pending">未启用</span>');
+          return `<tr data-ovkey="${esc(ovKey)}">
+            <td>${d.date}</td>
+            <td><span class="badge ${badgeCls}">${esc(d.status)}</span></td>
+            <td style="white-space:normal">${esc(d.detail)}</td>
+            <td style="text-align:right;white-space:nowrap">${moneyCell}</td>
+            <td style="text-align:center">${d.verifyable? verifyControl(d,curOv):""}</td>
+          </tr>`;
+        }).join("");
+        card.innerHTML = `
+          <table class="person-table">
+            <thead>
+              <tr class="ph-row">
+                <th colspan="3" class="ph-name">${esc(g.name)}<span class="dept-tag">${esc(g.dept)}</span></th>
+                <th class="ph-fine">罚款 <b class="money">¥${g.total}</b> · ${g.items.length} 条</th>
+                <th class="ph-verify"><span class="pending">待核实 ${pendingN}</span></th>
+              </tr>
+              <tr><th style="width:11%">日期</th><th style="width:15%">类型</th><th style="width:32%">说明</th><th style="width:22%;text-align:right">罚款</th><th style="width:20%;text-align:center">核实</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+        list.appendChild(card);
+      });
+    }
+  }
+
+  // 个人汇总（只含有罚款的人）
+  const totalRow = `<tr style="background:#fafbfc;font-weight:700">
+    <td colspan="2">合计（所有人）</td>
+    <td class="money">${totalLate}</td>
+    <td class="money">${totalAm}</td>
+    <td class="money">${totalPm}</td>
+    <td class="money">${totalEarly}</td>
+    <td class="money">${totalFull}</td>
+    <td class="money">¥${totalYuan}</td>
+  </tr>`;
+  const sumCard = document.createElement("div");
+  sumCard.className = "card";
+  sumCard.innerHTML = `<h2>个人罚款汇总 <span class="tag">只显示有罚款的人</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>姓名</th><th>部门</th><th>迟到(元)</th><th>上午缺勤(元)</th><th>下午缺勤(元)</th><th>早退(元)</th><th>全天缺勤(元)</th><th>罚款合计(元)</th></tr></thead>
+      <tbody>${summary.length? summary.map(s=>`<tr>
+        <td>${esc(s.name)}</td><td>${esc(s.dept)}</td>
+        <td>${s.late?('<span class="money">'+s.late+'</span>'):'0'}</td>
+        <td>${s.amYuan?('<span class="money">'+s.amYuan+'</span>'):'0'}</td>
+        <td>${s.pmYuan?('<span class="money">'+s.pmYuan+'</span>'):'0'}</td>
+        <td>${s.early?('<span class="money">'+s.early+'</span>'):'0'}</td>
+        <td>${s.fullYuan?('<span class="money">'+s.fullYuan+'</span>'):'0'}</td>
+        <td><b class="money">¥${s.total}</b></td></tr>`).join("")+totalRow : `<tr><td colspan="8" class="empty-tip">暂无需要罚款的员工 🎉</td></tr>`}
+      </tbody></table></div>`;
+  const oldSum = $("summaryCard");
+  if(oldSum) oldSum.remove();
+  sumCard.id = "summaryCard";
+  $("summaryGrid").after(sumCard);
+}
+
+/* ================= 考勤总表渲染 ================= */
+function getAttCols(){ return S.attCols || {present:true, leave:true, fine:true, overtime:true, lunch:false, trip:true}; }
+function renderAttToggles(){
+  const vis = getAttCols();
+  $("attToggles").innerHTML = ATT_COLS.map(c=>`<label><input type="checkbox" data-attcol="${c.key}" ${vis[c.key]?"checked":""}> ${c.label}</label>`).join("");
+}
+// 设置里的统计列开关（与总表上方同步）
+function renderSettingToggles(){
+  const el = $("attTogglesInSetting"); if(!el) return;
+  const vis = getAttCols();
+  el.innerHTML = ATT_COLS.map(c=>`<label><input type="checkbox" data-attcol="${c.key}" ${vis[c.key]?"checked":""}> ${c.label}</label>`).join("");
+}
+// 节假日日期网格（黄色圆圈）
+function renderHolidays(){
+  const grid = $("holidayGrid"); if(!grid) return;
+  const lastDay = daysInMonth();
+  let html = "";
+  for(let d=1; d<=lastDay; d++){
+    const dstr = dateKey(dayToDate(d));
+    const on = S.holidays.has(dstr) ? "on" : "";
+    html += `<div class="day ${on}" data-d="${d}">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+// A/B 组轮休日期选择器：每个周日一个按钮，点击在「A休 → B休 → 不休」间循环
+function renderRestPicker(){
+  const box = $("restPicker"); if(!box) return;
+  box.innerHTML = "";
+  S.sundays.forEach(d=>{
+    const dk = dateKey(d);
+    let cls = "off", tag = "不休";
+    if(S.restA.has(dk)){ cls = "a"; tag = "A休"; }
+    else if(S.restB.has(dk)){ cls = "b"; tag = "B休"; }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rest-day " + cls;
+    btn.dataset.dk = dk;
+    btn.innerHTML = `<b>${dateStr(d)}</b><span>${tag}</span>`;
+    btn.onclick = ()=>{ cycleRestDay(dk); };
+    box.appendChild(btn);
+  });
+}
+function cycleRestDay(dk){
+  pushUndo("调整轮休日");
+  if(S.restA.has(dk)){ S.restA.delete(dk); S.restB.add(dk); }
+  else if(S.restB.has(dk)){ S.restB.delete(dk); }
+  else { S.restA.add(dk); }
+  render();
+}
+function updateCGroupBtn(){
+  const btn = $("cModeBtn"); if(!btn) return;
+  btn.textContent = S.cDouble ? "双休（周六+周日）" : "单休（每周日）";
+}
+// 考勤标记管理列表
+function renderMarks(){
+  const list = $("markList"); if(!list) return;
+  const marks = (S.marks && S.marks.length) ? S.marks : DEFAULT_MARKS;
+  list.innerHTML = marks.map((m,i)=>`
+    <div class="mark-row" data-i="${i}">
+      <input class="sym-inp" data-k="sym" value="${esc(m.sym)}" title="符号（如 √ ○ × 缺 差 休 病）">
+      <span style="color:var(--text2)">=</span>
+      <input class="label-inp" data-k="label" value="${esc(m.label)}" title="含义文字">
+      <button type="button" class="color-swatch" data-colorpick="${i}" style="background:${m.color}" title="选择颜色"></button>
+      <button class="btn-mini del" data-delmark="${i}" title="删除标记">删</button>
+    </div>`).join("");
+}
+// 悬浮高亮配色选择（考勤区 + 统计列两个色板）
+function renderHlColors(){
+  const box = $("hlSwatches");
+  if(box){
+    box.innerHTML = HL_COLORS.map(c=>`
+      <div class="hl-sw ${c.light===S.hlColor?"on":""}" data-hl="${c.light}" title="${c.name}">
+        <span class="dot" style="background:${c.light};border-color:${c.dark}"></span>${c.name}
+      </div>`).join("");
+  }
+  const box2 = $("hlSwatches2");
+  if(box2){
+    box2.innerHTML = HL_COLORS.map(c=>`
+      <div class="hl-sw ${c.light===S.hlColor2?"on":""}" data-hl2="${c.light}" title="${c.name}">
+        <span class="dot" style="background:${c.light};border-color:${c.dark}"></span>${c.name}
+      </div>`).join("");
+  }
+}
+// 全勤天数：本月日历天数 - 周日 - 节假日 - 全员无打卡的休息日
+function fullAttendanceDays(){
+  const lastDay = daysInMonth();
+  let work = 0, rest = 0;
+  for(let day=1; day<=lastDay; day++){
+    const d = dayToDate(day);
+    const dk = dateKey(d);
+    const isSun = d.getDay()===0;
+    const isHol = S.holidays.has(dk);
+    const isAllRest = S.restDays.has(dk);
+    if(isSun || isHol || isAllRest) rest++;
+    else work++;
+  }
+  return {work, rest, total:lastDay};
+}
+function renderAttendance(){
+  renderAttToggles();
+  renderSettingToggles();
+  // 考勤总表说明文字（跟随自定义标记动态生成）
+  const legendEl = $("attLegend");
+  if(legendEl){
+    const marks = (S.marks && S.marks.length ? S.marks : DEFAULT_MARKS);
+    legendEl.textContent = marks.map(m=>`${m.sym}=${m.label}`).join(" · ") + " · 点击任意格子修改考勤";
+  }
+  const data = computeAttendance();
+  const lastDay = daysInMonth();
+  const vis = getAttCols();
+  const visCols = ATT_COLS.filter(c=>vis[c.key]);
+  const {y,m} = ym();
+  const fad = fullAttendanceDays();
+
+  let head1 = `<tr><th rowspan="3" class="idx" data-th="idx">序号</th><th rowspan="3" class="name" data-th="name">姓名</th>`;
+  let head2 = `<tr>`;
+  let head3 = `<tr>`;
+  for(let day=1; day<=lastDay; day++){
+    const wd = WD[dayToDate(day).getDay()];
+    head1 += `<th colspan="2" data-th="date" data-hday="${day}">${day}</th>`;
+    head2 += `<th colspan="2" data-th="week" data-hday="${day}">${wd}</th>`;
+    head3 += `<th class="half" data-th="half" data-hday="${day}" data-hhalf="am">上</th><th class="half" data-th="half" data-hday="${day}" data-hhalf="pm">下</th>`;
+  }
+  visCols.forEach((c,i)=>{ head1 += `<th rowspan="3" data-th="stat" data-hcol="${2+lastDay*2+i}">${c.label}</th>`; });
+  head1 += `</tr>`; head2 += `</tr>`; head3 += `</tr>`;
+
+  const body = data.map((p,idx)=>{
+    const cells = p.cells.map(c=>{
+      const wk = c.day===0 || (dayToDate(c.day).getDay()===0);
+      const wkCls = wk ? "wknd" : "";
+      const amCol = cellColor(c.am, c.holiday), pmCol = cellColor(c.pm, c.holiday);
+      const amColIdx = 2+(c.day-1)*2, pmColIdx = amColIdx+1;
+      return `<td class="c editable ${wkCls}" style="color:${amCol}" data-col="${amColIdx}" data-name="${esc(p.name)}" data-day="${c.day}" data-half="am" title="点击切换">${c.am}</td><td class="c editable ${wkCls}" style="color:${pmCol}" data-col="${pmColIdx}" data-name="${esc(p.name)}" data-day="${c.day}" data-half="pm" title="点击切换">${c.pm}</td>`;
+    }).join("");
+    const stats = visCols.map((c,i)=>`<td class="stat" data-col="${2+lastDay*2+i}" data-stat="1">${fmtDay(p[c.key])}</td>`).join("");
+    const nameCls = p.noPunch ? ' class="name np-name"' : ' class="name"';
+    return `<tr><td class="idx" data-col="0">${idx+1}</td><td${nameCls} data-col="1">${esc(p.name)}</td>${cells}${stats}</tr>`;
+  }).join("");
+
+  const totalCols = 2 + lastDay*2 + visCols.length;
+  const head0 = `<tr><th colspan="${totalCols}" class="att-title">${y}年${m}月 考勤总表 · 应出勤 <b style="color:var(--blue)">${fad.work}</b> 天（本月共 ${fad.total} 天，休 ${fad.rest} 天）</th></tr>`;
+  const wrap = $("attWrap");
+  const hl = hlPalette(), hl2 = hlPalette2();
+  wrap.style.setProperty("--hl", hl.light);
+  wrap.style.setProperty("--hl-mid", hl.mid);
+  wrap.style.setProperty("--hl-dark", hl.dark);
+  wrap.style.setProperty("--hl2", hl2.light);
+  wrap.style.setProperty("--hl2-mid", hl2.mid);
+  wrap.style.setProperty("--hl2-dark", hl2.dark);
+  wrap.innerHTML = `<table class="att-table"><thead>${head0}${head1}${head2}${head3}</thead><tbody>${body}</tbody></table>`;
+}
+
+/* ================= 出差登记表渲染 ================= */
+function renderTrip(){
+  const showRemark = !!S.showTripRemark;
+  const rbtn = $("btnToggleRemark");
+  if(rbtn) rbtn.textContent = showRemark ? "隐藏备注" : "显示备注";
+
+  // 月份显示
+  const monthEl = $("tripMonth");
+  if(monthEl){
+    monthEl.textContent = S.baseDate ? (S.baseDate.getFullYear()+"年"+(S.baseDate.getMonth()+1)+"月") : "";
+  }
+
+  const all = computeTrip();
+  // 部门筛选下拉
+  const deptSet = new Set();
+  all.forEach(t=>{ if(t.dept) deptSet.add(t.dept); });
+  const deptFilter = $("tripDeptFilter");
+  if(deptFilter){
+    deptFilter.innerHTML = `<option value="">全部部门</option>` + [...deptSet].map(d=>`<option value="${esc(d)}" ${S.tripDeptFilter===d?"selected":""}>${esc(d)}</option>`).join("");
+  }
+  const list = S.tripDeptFilter ? all.filter(t=>t.dept===S.tripDeptFilter) : all;
+
+  if(!list.length){
+    $("tripWrap").innerHTML = `<div class="empty-tip">${all.length ? "该部门暂无出差记录" : "暂无出差记录。点上方「＋ 添加出差」手动登记，或在罚款明细里把该员工该天核实为「出差」后自动汇总。"}</div>`;
+    return;
+  }
+  const remarkHead = showRemark ? `<th style="width:200px">备注</th>` : "";
+  const rows = list.map(t=>{
+    const place = S.tripPlaces[t.name] || "";
+    const remark = S.tripRemarks[t.name] || "";
+    const remarkCell = showRemark ? `<td style="white-space:normal"><input class="trip-remark" data-name="${esc(t.name)}" value="${esc(remark)}" placeholder="填写备注"></td>` : "";
+    return `<tr>
+      <td><input class="trip-place" data-name="${esc(t.name)}" value="${esc(place)}" placeholder="填写出差地"></td>
+      <td>${esc(t.name)}<span class="dept-tag">${esc(t.dept)}</span></td>
+      <td style="white-space:normal">${t.dates.join("、")}</td>
+      ${remarkCell}
+      <td style="width:56px"><button class="btn-mini del" data-tripdel="${esc(t.name)}">清除</button></td>
+    </tr>`;
+  }).join("");
+  $("tripWrap").innerHTML = `<table>
+    <thead><tr><th style="width:140px">出差地</th><th>出差人员</th><th>出差日期</th>${remarkHead}<th style="width:56px"></th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+/* ================= 出差登记：手动添加 ================= */
+let tripSel = new Set();       // 弹窗里选中的日期
+let tripPersons = new Set();   // 弹窗里选中的人员（姓名，可多选）
+function clearTrip(name){
+  for(const k in S.overrides){
+    if(k.indexOf(name+"|")===0 && S.overrides[k].indexOf("出差")>=0) delete S.overrides[k];
+  }
+  // 同步清除免打卡人员总表里标「差」的手动覆盖（恢复默认全勤）
+  for(const k in S.attManual){
+    if(k.indexOf(name+"|")===0){
+      const c = S.attManual[k];
+      if(c.am==="差") c.am="√";
+      if(c.pm==="差") c.pm="√";
+      if(c.am==="√" && c.pm==="√") delete S.attManual[k];
+    }
+  }
+}
+function openTripModal(){
+  if(!S.employees.length){ alert("请先导入打卡记录或添加员工"); return; }
+  tripSel = new Set();
+  tripPersons = new Set();
+  $("t_search").value = "";
+  renderTripNames();
+  // 日期网格
+  const lastDay = daysInMonth();
+  let daysHtml = "";
+  for(let d=1; d<=lastDay; d++){
+    daysHtml += `<div class="day" data-d="${d}">${d}</div>`;
+  }
+  $("t_days").innerHTML = daysHtml;
+  $("t_place").value = ""; $("t_remark").value = "";
+  $("tripModal").classList.add("show");
+}
+// 渲染弹窗内的人员多选列表（按部门分组，支持搜索过滤）
+function renderTripNames(){
+  const kw = ($("t_search").value || "").trim();
+  const list = orderedEmployees().filter(e=> !kw || e.name.indexOf(kw)>=0 || (e.department||"").indexOf(kw)>=0);
+  const groups = new Map();
+  list.forEach(e=>{ const d = e.department||"未分组"; if(!groups.has(d)) groups.set(d, []); groups.get(d).push(e); });
+  let html = "";
+  groups.forEach((emps, dept)=>{
+    html += `<div class="dept-head">${esc(dept)}</div><div class="chip-wrap">`;
+    emps.forEach(e=>{
+      const on = tripPersons.has(e.name) ? "on" : "";
+      html += `<button type="button" class="person-chip ${on}" data-person="${esc(e.name)}">${esc(e.name)}${e.noPunch?' <i class="chip-np">免打卡</i>':''}</button>`;
+    });
+    html += `</div>`;
+  });
+  if(!list.length) html = `<div class="empty-tip" style="padding:10px 0">无匹配人员</div>`;
+  $("t_names").innerHTML = html;
+  updateTripSelCount();
+}
+function updateTripSelCount(){
+  const el = $("tSelCount"); if(el) el.textContent = tripPersons.size;
+}
+function submitTrip(){
+  const names = [...tripPersons];
+  const days = [...tripSel].sort((a,b)=>a-b);
+  const place = $("t_place").value.trim();
+  const remark = $("t_remark").value.trim();
+  if(!names.length){ alert("请至少选择一名出差人员"); return; }
+  if(!days.length){ alert("请至少选择一个出差日期"); return; }
+  pushUndo("登记出差");
+  names.forEach(name=>{
+    days.forEach(day=>{
+      const dstr = dateKey(dayToDate(day));
+      S.overrides[name+"|"+dstr] = "出差";
+    });
+    if(place) S.tripPlaces[name] = place;
+    if(remark) S.tripRemarks[name] = remark;
+  });
+  savePersist();
+  render();
+  $("tripModal").classList.remove("show");
+}
+
+function verifyControl(d, curOv){
+  const ovKey = d.name+"|"+d.date;
+  const mode = S.params.verifyMode || "quick";
+  if(mode === "reason"){
+    const opts = ["", "情有可原","出差","送货","收货","发货","请假","休息日/调休","正常上班(误报)"];
+    const options = opts.map(o=>{
+      const val = esc(o), label = o===""?"—待核实—":esc(o);
+      return `<option value="${val}" ${o===curOv?"selected":""}>${label}</option>`;
+    }).join("");
+    return `<select class="verify" data-ovkey="${esc(ovKey)}">${options}</select>`;
+  }
+  // 一键核实模式：点一下直接免罚
+  return `<button class="btn-verify" data-ovkey="${esc(ovKey)}">✓ 免罚</button>`;
+}
+
+function esc(s){ return String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+// 已核实（免罚）记录列表，供「已核实」tab 展示，每条可撤销
+function renderVerifiedList(list){
+  const rows = computeVerified();
+  if(!rows.length){
+    list.innerHTML = `<div class="empty-tip">还没有核实（免罚）的记录</div>`;
+    return;
+  }
+  const groups = new Map();
+  rows.forEach(r=>{
+    const k = r.name+"|"+r.dept;
+    if(!groups.has(k)) groups.set(k, {name:r.name, dept:r.dept, items:[]});
+    groups.get(k).items.push(r);
+  });
+  groups.forEach(g=>{
+    const card = document.createElement("div");
+    card.className = "person-card";
+    const body = g.items.map(r=>{
+      const badgeCls = r.status.indexOf("迟到")>=0 ? "a" : (r.status.indexOf("早退")>=0 || r.status.indexOf("缺勤")>=0) ? "ex" : "b";
+      return `<tr>
+        <td>${r.date}</td>
+        <td><span class="badge ${badgeCls}">${esc(r.status)}</span></td>
+        <td style="white-space:normal">${esc(r.detail)}</td>
+        <td><span class="free">${esc(r.reason||"已核实")}</span></td>
+        <td><button class="btn-undo" data-ovkey="${esc(r.ovKey)}">撤销</button></td>
+      </tr>`;
+    }).join("");
+    card.innerHTML = `
+      <table class="person-table">
+        <thead>
+          <tr class="ph-row">
+            <th colspan="3" class="ph-name">${esc(g.name)}<span class="dept-tag">${esc(g.dept)}</span></th>
+            <th colspan="2" class="ph-fine">已核实（免罚）<b>${g.items.length}</b> 条</th>
+          </tr>
+          <tr><th style="width:11%">日期</th><th style="width:15%">类型</th><th style="width:30%">说明</th><th style="width:28%">核实原因</th><th style="width:16%"></th></tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>`;
+    list.appendChild(card);
+  });
+}
+
+/* ================= 外勤自动识别 ================= */
+function autoDetectExternal(){
+  const eveningByDept = d=> d==="财务部" ? parseHM(S.params.finance) : parseHM(S.params.other);
+  for(const emp of S.employees){
+    let hasM=false, hasE=false;
+    for(const day in emp.dayTimes){
+      for(const t of emp.dayTimes[day]){ if(t<720) hasM=true; if(t>=eveningByDept(emp.department)) hasE=true; }
+    }
+    if(hasM && !hasE) emp.isExternal = true;
+  }
+}
+
+/* ================= 自动推算 A/B ================= */
+function guessGroups(){
+  for(const emp of S.employees){
+    if(emp.group) continue; // 已手动设置 A/B 的不再自动推算
+    let oddRest=0, oddWork=0, evenRest=0, evenWork=0;
+    S.sundays.forEach((d,i)=>{
+      const day = d.getDate();
+      const has = emp.dayTimes[day] && emp.dayTimes[day].length>0;
+      const idx = i+1;
+      if(idx%2===1){ has? oddWork++ : oddRest++; } else { has? evenWork++ : evenRest++; }
+    });
+    const scoreA = oddRest + evenWork;
+    const scoreB = oddWork + evenRest;
+    if(scoreA>scoreB && scoreA>=2) emp.group="A";
+    else if(scoreB>scoreA && scoreB>=2) emp.group="B";
+    else if(!emp.group) emp.group="";
+  }
+}
+
+/* ================= 参数读取/写入 ================= */
+function readParams(){
+  S.params = {
+    morning: $("p_morning").value||"09:00",
+    rate: +($("p_rate").value)||0,
+    halfMin: +($("p_halfmin").value)||30,
+    afternoon: $("p_afternoon").value||"14:00",
+    afternoonRate: +($("p_afternoon_rate").value)||0,
+    afternoonHalfMin: +($("p_afternoon_halfmin").value)||30,
+    earlyYuan: +($("p_early_yuan").value)||0,
+    deptCuts: readDeptCuts(),
+    overtimeEnabled: $("p_overtime_enabled").classList.contains("on"),
+    overtime: $("p_overtime").value||"20:00",
+    fineMorningAbsent: $("p_am_fine").classList.contains("on"),
+    fineAfternoonAbsent: $("p_pm_fine").classList.contains("on"),
+    fineEarly: $("p_early_fine").classList.contains("on"),
+    verifyMode: $("p_verify_mode").value||"quick"
+  };
+}
+// 读取「按部门下班时间」的动态输入框
+function readDeptCuts(){
+  const cuts = {};
+  const box = $("deptCutsBox");
+  if(box) box.querySelectorAll("input[data-dept]").forEach(inp=>{ cuts[inp.dataset.dept] = inp.value || "19:00"; });
+  return cuts;
+}
+// 根据导入的员工部门动态生成下班时间设置（排除免打卡人员）
+function renderDeptCuts(){
+  const box = $("deptCutsBox");
+  if(!box) return;
+  const old = {};
+  box.querySelectorAll("input[data-dept]").forEach(inp=>{ old[inp.dataset.dept] = inp.value; });
+  const depts = [];
+  const seen = new Set();
+  S.employees.forEach(e=>{
+    if(!e.noPunch && e.department && !seen.has(e.department)){ seen.add(e.department); depts.push(e.department); }
+  });
+  const cuts = S.params.deptCuts || {};
+  if(!depts.length){
+    box.innerHTML = `<div class="empty-tip" style="padding:6px 0">导入后自动列出各部门下班时间</div>`;
+    return;
+  }
+  box.innerHTML = depts.map(dept=>{
+    const val = old[dept] || cuts[dept] || deptDefaultCut(dept);
+    return `<div class="param-row"><label>${esc(dept)}下班截止</label><input type="time" data-dept="${esc(dept)}" value="${esc(val)}"></div>`;
+  }).join("");
+}
+function updateOvertimeRow(){
+  const on = $("p_overtime_enabled").classList.contains("on");
+  const row = $("overtimeRow");
+  if(row) row.style.display = on ? "" : "none";
+}
+function writeParamsUI(){
+  const p = S.params || {};
+  $("p_morning").value = p.morning ?? "09:00";
+  $("p_rate").value = p.rate ?? 1;
+  $("p_halfmin").value = p.halfMin ?? 30;
+  $("p_afternoon").value = p.afternoon ?? "14:00";
+  $("p_afternoon_rate").value = p.afternoonRate ?? 1;
+  $("p_afternoon_halfmin").value = p.afternoonHalfMin ?? 30;
+  $("p_early_yuan").value = p.earlyYuan ?? 1;
+  $("p_overtime").value = p.overtime ?? "20:00";
+  $("p_overtime_enabled").classList.toggle("on", p.overtimeEnabled ?? false);
+  $("p_am_fine").classList.toggle("on", p.fineMorningAbsent ?? true);
+  $("p_pm_fine").classList.toggle("on", p.fineAfternoonAbsent ?? false);
+  $("p_early_fine").classList.toggle("on", p.fineEarly ?? false);
+  $("p_verify_mode").value = p.verifyMode ?? "quick";
+  updateOvertimeRow();
+  renderDeptCuts();
+}
+
+/* ================= 持久化 ================= */
+function savePersist(){
+  const data = {
+    params: S.params,
+    empAttrs: S.employees.map(e=>({name:e.name, isExternal:e.isExternal, group:e.group, halfSalary:e.halfSalary, noPunch:e.noPunch})),
+    extraEmployees: S.employees.filter(e=>e.noPunch).map(e=>({id:e.id, name:e.name, department:e.department, isExternal:e.isExternal, group:e.group, halfSalary:e.halfSalary, noPunch:true, dayTimes:{}})),
+    overrides: S.overrides,
+    halfOverrides: S.halfOverrides,
+    attCols: S.attCols,
+    tripPlaces: S.tripPlaces,
+    tripRemarks: S.tripRemarks,
+    attManual: S.attManual,
+    tripDeptFilter: S.tripDeptFilter,
+    holidays: [...S.holidays],
+    marks: S.marks,
+    restA: [...S.restA],
+    restB: [...S.restB],
+    cDouble: S.cDouble,
+    hlColor: S.hlColor,
+    hlColor2: S.hlColor2
+  };
+  try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
+}
+function loadPersist(){
+  try{ const s = localStorage.getItem(KEY); if(s) S.persist = JSON.parse(s); }catch(e){}
+  if(S.persist.attCols) S.attCols = {...getAttCols(), ...S.persist.attCols};
+  if(S.persist.tripPlaces) S.tripPlaces = S.persist.tripPlaces;
+  if(S.persist.tripRemarks) S.tripRemarks = S.persist.tripRemarks;
+  if(S.persist.attManual) S.attManual = S.persist.attManual;
+  if(S.persist.tripDeptFilter != null) S.tripDeptFilter = S.persist.tripDeptFilter;
+  if(S.persist.holidays) S.holidays = new Set(S.persist.holidays);
+  if(S.persist.marks && S.persist.marks.length) S.marks = S.persist.marks;
+  else if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
+  if(S.persist.restA != null) S.restA = new Set(S.persist.restA);
+  if(S.persist.restB != null) S.restB = new Set(S.persist.restB);
+  if(S.persist.cDouble != null) S.cDouble = !!S.persist.cDouble;
+  if(S.persist.hlColor) S.hlColor = S.persist.hlColor;
+  if(S.persist.hlColor2) S.hlColor2 = S.persist.hlColor2;
+}
+
+/* ================= 导入 ================= */
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const {employees, baseDate} = parseWorkbook(e.target.result);
+      if(!employees.length){ alert("没有解析到员工数据，请确认是「员工刷卡记录表」。"); return; }
+      S.employees = employees;
+      S.baseDate = baseDate;
+      S.sundays = computeSundays(baseDate);
+      // A/B 组轮休：优先沿用本月已手动调整的（跨月则按隔周重新初始化）
+      const sundayKeys = new Set(S.sundays.map(d=>dateKey(d)));
+      const pRA = S.persist.restA, pRB = S.persist.restB;
+      if(pRA != null && pRB != null && [...pRA, ...pRB].every(k=>sundayKeys.has(k))){
+        S.restA = new Set(pRA); S.restB = new Set(pRB);
+      } else {
+        S.restA = new Set(); S.restB = new Set();
+        S.sundays.forEach((d,i)=>{ if((i+1)%2===1) S.restA.add(dateKey(d)); else S.restB.add(dateKey(d)); });
+      }
+      S.overrides = S.persist.overrides || {};
+      S.halfOverrides = S.persist.halfOverrides || {};
+
+      // 合并免打卡人员（默认高层 + 之前手动添加的），不在打卡名单也始终保留、置顶
+      const extras = [...DEFAULT_NO_PUNCH, ...(S.persist.extraEmployees || [])];
+      for(const ex of extras){
+        if(!S.employees.some(e=>e.name===ex.name)){
+          S.employees.push({id:ex.id||"", name:ex.name, department:ex.department, dayTimes:{}, isExternal:ex.isExternal||false, group:ex.group||"", halfSalary:ex.halfSalary!=null?ex.halfSalary:0, noPunch:true});
+        }
+      }
+
+      // 自动识别全体休息日（全员无打卡的日期）
+      S.restDays = new Set();
+      const allDays = {};
+      for(const emp of S.employees) for(const day in emp.dayTimes) allDays[day]=true;
+      for(let day=1; day<=31; day++){
+        const d = dayToDate(day); if(d.getMonth()!==baseDate.getMonth()) continue;
+        const anyPunch = S.employees.some(emp=>emp.dayTimes[day] && emp.dayTimes[day].length>0);
+        if(!anyPunch) S.restDays.add(dateKey(d));
+      }
+
+      // 应用持久化的外勤/组别/半天工资/免打卡
+      const attrs = S.persist.empAttrs || [];
+      for(const emp of S.employees){
+        const a = attrs.find(x=>x.name===emp.name);
+        if(a){ emp.isExternal = a.isExternal; emp.group = a.group; emp.halfSalary = a.halfSalary!=null ? a.halfSalary : 50; if(a.noPunch) emp.noPunch = true; }
+        else if(!emp.noPunch){ emp.isExternal = false; emp.group = ""; emp.halfSalary = 50; }
+      }
+      autoDetectExternal();
+      guessGroups();
+      writeParamsUI();
+      render();
+    }catch(err){ alert("解析失败："+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ================= 导出 ================= */
+function exportResult(){
+  const {detail, summary} = computeAll();
+  const daily = computeDaily();
+  const wb = XLSX.utils.book_new();
+
+  const sumRows = [["姓名","部门","迟到(元)","上午缺勤(元)","下午缺勤(元)","早退(元)","全天缺勤(元)","罚款合计(元)"]];
+  summary.forEach(s=>sumRows.push([s.name,s.dept,s.late,s.amYuan,s.pmYuan,s.early,s.fullYuan,s.total]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumRows), "个人汇总");
+
+  const detRows = [["日期","姓名","部门","类型","说明","罚款(元)"]];
+  detail.forEach(d=>detRows.push([d.date,d.name,d.dept,d.status,d.detail,d.total]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detRows), "罚款明细");
+
+  // 已核实（免罚）记录，带原因，方便导出给别人看
+  const verified = computeVerified();
+  const verRows = [["日期","姓名","部门","类型","说明","核实原因"]];
+  verified.forEach(v=>verRows.push([v.date,v.name,v.dept,v.status,v.detail,v.reason||"已核实"]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(verRows), "已核实记录");
+
+  const dailyRows = [["工号","姓名","部门","日期","上班卡","下班卡","判定","说明","罚款(元)"]];
+  daily.forEach(r=>dailyRows.push([r.id, r.name, r.dept, r.date,
+    r.morning!=null?fmtMin(r.morning):"", r.afternoon.map(fmtMin).join("、"),
+    r.status, r.detail, r.total||""]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dailyRows), "每日明细");
+
+  // 考勤总表
+  const att = computeAttendance();
+  const lastDay = daysInMonth();
+  const attHead = ["序号","姓名"];
+  for(let d=1;d<=lastDay;d++) attHead.push(d+"上", d+"下");
+  ATT_COLS.forEach(c=>attHead.push(c.label));
+  const attRows = [attHead];
+  att.forEach((p,idx)=>{
+    const r = [idx+1, p.name];
+    p.cells.forEach(c=>r.push(c.am, c.pm));
+    ATT_COLS.forEach(c=>r.push(p[c.key]));
+    attRows.push(r);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attRows), "考勤总表");
+
+  // 出差登记表
+  const trips = computeTrip();
+  const tripRows = [["出差地","出差人员","出差日期","备注"]];
+  trips.forEach(t=>tripRows.push([S.tripPlaces[t.name]||"", t.name, t.dates.join(","), S.tripRemarks[t.name]||""]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(tripRows), "出差登记表");
+
+  const y = S.baseDate.getFullYear(), m = S.baseDate.getMonth()+1;
+  XLSX.writeFile(wb, `考勤统计_${y}-${String(m).padStart(2,'0')}.xlsx`);
+}
+
+/* ================= 事件绑定 ================= */
+function bindEvents(){
+  $("btnImport").onclick = ()=> $("fileInput").click();
+  $("empty").onclick = e=>{ if(e.target.id==="empty"||e.target.closest("#empty")) $("fileInput").click(); };
+  $("fileInput").onchange = e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); e.target.value=""; };
+
+  // 拖拽导入：阻止浏览器默认的「打开/下载」，改为读取文件
+  ["dragover","dragenter"].forEach(ev=>{
+    document.addEventListener(ev, e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      if(e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+      $("empty").classList.add("drag-over");
+    });
+  });
+  ["dragleave","dragend"].forEach(ev=>{
+    document.addEventListener(ev, e=>{
+      e.preventDefault();
+      $("empty").classList.remove("drag-over");
+    });
+  });
+  document.addEventListener("drop", e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    $("empty").classList.remove("drag-over");
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) handleFile(f);
+  });
+
+  $("btnExport").onclick = exportResult;
+
+  // 撤销按钮 + 导出中心
+  $("btnUndo").onclick = ()=>{ undo(); };
+  $("btnExportCenter").onclick = ()=>{ $("exportModal").classList.add("show"); };
+  $("expCancel").onclick = ()=> $("exportModal").classList.remove("show");
+  $("exportModal").onclick = e=>{ if(e.target.id==="exportModal") $("exportModal").classList.remove("show"); };
+  $("exportModal").addEventListener("click", e=>{
+    const b = e.target.closest(".exp-btn"); if(!b) return;
+    $("exportModal").classList.remove("show");
+    runExport(b.dataset.exp);
+  });
+  // 考勤总表统计列开关
+  $("attToggles").addEventListener("change", e=>{
+    const cb = e.target.closest("input[data-attcol]"); if(!cb) return;
+    S.attCols[cb.dataset.attcol] = cb.checked;
+    savePersist(); renderAttendance();
+  });
+  // 设置里的统计列开关（与总表上方同步）
+  $("attTogglesInSetting").addEventListener("change", e=>{
+    const cb = e.target.closest("input[data-attcol]"); if(!cb) return;
+    S.attCols[cb.dataset.attcol] = cb.checked;
+    savePersist(); renderAttendance(); renderSettingToggles();
+  });
+  // 节假日日期网格（黄色圆圈）
+  $("holidayGrid").addEventListener("click", e=>{
+    const d = e.target.closest(".day"); if(!d) return;
+    const day = +d.dataset.d;
+    const dstr = dateKey(dayToDate(day));
+    pushUndo("设置节假日");
+    if(S.holidays.has(dstr)){ S.holidays.delete(dstr); d.classList.remove("on"); }
+    else { S.holidays.add(dstr); d.classList.add("on"); }
+    savePersist();
+    renderAttendance();
+  });
+  // C 组单休/双休切换
+  $("cModeBtn").onclick = ()=>{ pushUndo("切换C组双休"); S.cDouble = !S.cDouble; render(); };
+  $("markList").addEventListener("change", e=>{
+    const row = e.target.closest(".mark-row"); if(!row) return;
+    const k = e.target.dataset.k; if(!k) return;
+    const i = +row.dataset.i;
+    if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
+    pushUndo("修改考勤标记");
+    S.marks[i][k] = e.target.value;
+    savePersist();
+    renderAttendance();
+  });
+  // 考勤标记：删除
+  $("markList").addEventListener("click", e=>{
+    const b = e.target.closest("[data-delmark]"); if(!b) return;
+    const i = +b.dataset.delmark;
+    if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
+    if(S.marks.length<=1){ alert("至少保留一个标记"); return; }
+    if(!confirm("删除标记「"+(S.marks[i]?S.marks[i].sym:"")+"」？")) return;
+    pushUndo("删除考勤标记");
+    S.marks.splice(i,1);
+    savePersist();
+    renderMarks(); renderAttendance();
+  });
+  // 添加标记
+  $("btnAddMark").onclick = ()=>{
+    if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
+    pushUndo("添加考勤标记");
+    S.marks.push({sym:"休", label:"年假", color:"#00c7be"});
+    savePersist();
+    renderMarks(); renderAttendance();
+  };
+  // 悬浮高亮配色切换（考勤区 + 统计列）
+  $("hlSwatches").addEventListener("click", e=>{
+    const sw = e.target.closest("[data-hl]"); if(!sw) return;
+    S.hlColor = sw.dataset.hl;
+    savePersist();
+    renderHlColors();
+    renderAttendance();
+  });
+  $("hlSwatches2").addEventListener("click", e=>{
+    const sw = e.target.closest("[data-hl2]"); if(!sw) return;
+    S.hlColor2 = sw.dataset.hl2;
+    savePersist();
+    renderHlColors();
+    renderAttendance();
+  });
+
+  // 颜色色板：苹果风预设色 + 自定义色
+  let colorPickIdx = -1;
+  function buildPalette(){
+    $("colorPalette").innerHTML = PRESET_COLORS.map(c=>`<button type="button" class="sw" data-color="${c}" style="background:${c}"></button>`).join("");
+    $("customSwatch").innerHTML = `<input type="color" id="customColor" value="#0a84ff">`;
+  }
+  buildPalette();
+  function openColorPop(swatch){
+    colorPickIdx = +swatch.dataset.colorpick;
+    const marks = (S.marks && S.marks.length) ? S.marks : DEFAULT_MARKS;
+    const cur = (marks[colorPickIdx] && marks[colorPickIdx].color) || "#0a84ff";
+    $("colorPalette").querySelectorAll(".sw").forEach(s=>s.classList.toggle("on", s.dataset.color.toUpperCase()===String(cur).toUpperCase()));
+    const cc = $("customColor"); if(cc) cc.value = cur;
+    const r = swatch.getBoundingClientRect();
+    const pop = $("colorPop");
+    pop.classList.add("show");
+    const pw = pop.offsetWidth || 244, ph = pop.offsetHeight || 210;
+    let left = r.left, top = r.bottom + 10;
+    if(left + pw > window.innerWidth - 12) left = window.innerWidth - pw - 12;
+    if(top + ph > window.innerHeight - 12) top = Math.max(12, r.top - ph - 10);
+    pop.style.left = left + "px";
+    pop.style.top = top + "px";
+  }
+  function applyMarkColor(color){
+    if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
+    if(!S.marks[colorPickIdx]) return;
+    pushUndo("修改标记颜色");
+    S.marks[colorPickIdx].color = color;
+    savePersist();
+    renderMarks(); renderAttendance();
+  }
+  $("markList").addEventListener("click", e=>{
+    const sw = e.target.closest("[data-colorpick]"); if(!sw) return;
+    openColorPop(sw);
+  });
+  $("colorPalette").addEventListener("click", e=>{
+    const s = e.target.closest(".sw"); if(!s) return;
+    applyMarkColor(s.dataset.color);
+    $("colorPop").classList.remove("show");
+  });
+  $("customSwatch").addEventListener("input", e=>{
+    if(e.target.id !== "customColor") return;
+    const sw = $("markList").querySelector(`[data-colorpick="${colorPickIdx}"]`);
+    if(sw) sw.style.background = e.target.value;
+    if(!S.marks || !S.marks.length) S.marks = DEFAULT_MARKS.map(m=>({...m}));
+    if(S.marks[colorPickIdx]) S.marks[colorPickIdx].color = e.target.value;
+    savePersist();
+  });
+  $("customSwatch").addEventListener("change", e=>{
+    if(e.target.id !== "customColor") return;
+    renderMarks(); renderAttendance();
+    $("colorPop").classList.remove("show");
+  });
+  document.addEventListener("click", e=>{
+    const pop = $("colorPop");
+    if(!pop.classList.contains("show")) return;
+    if(e.target.closest("#colorPop") || e.target.closest("[data-colorpick]")) return;
+    pop.classList.remove("show");
+  });
+
+  // 考勤总表格子点击循环切换（所有人员，仅改总表显示，不自动回写罚款明细）
+  $("attWrap").addEventListener("click", e=>{
+    const td = e.target.closest("td.c.editable"); if(!td) return;
+    const name = td.dataset.name, day = +td.dataset.day, half = td.dataset.half;
+    const dstr = dateKey(dayToDate(day));
+    const mk = name+"|"+dstr;
+    const emp = S.employees.find(x=>x.name===name);
+    if(!emp) return;
+    let cur = S.attManual[mk];
+    if(!cur){ const c = attendanceCell(emp, day); cur = {am:c.am, pm:c.pm}; }
+    pushUndo("修改总表考勤");
+    cur[half] = cycleSym(cur[half]);
+    S.attManual[mk] = {am:cur.am, pm:cur.pm};
+    savePersist();
+    renderAttendance();
+    renderTrip();
+  });
+  // 悬浮定位：全表十字高亮（行 + 列 + 表头）。考勤区用 --hl、统计区用 --hl2；hover 表头时用深色档「加深」
+  const ATT_HL_CLASSES = ["th-hl","th-hl-strong","th-hl2","th-hl2-strong","col-hl","col-hl2","cell-hl","cell-hl2","row-hl"];
+  function clearAttHl(wrap){
+    wrap.querySelectorAll(".th-hl, .th-hl-strong, .th-hl2, .th-hl2-strong, .col-hl, .col-hl2, .cell-hl, .cell-hl2, .row-hl").forEach(el=>{
+      el.classList.remove(...ATT_HL_CLASSES);
+    });
+  }
+  function setAttHl(el){
+    const wrap = $("attWrap");
+    clearAttHl(wrap);
+    const d = el.dataset;
+    const isHead = !!d.th;   // hover 在表头
+    // 行高亮：仅数据行（tbody）触发
+    const tr = el.closest("tr");
+    if(tr && tr.parentNode && tr.parentNode.tagName === "TBODY") tr.classList.add("row-hl");
+
+    const one = sel => wrap.querySelector(sel);
+    const many = sel => wrap.querySelectorAll(sel);
+    const add = (n, cls)=>{ if(n) n.classList.add(cls); };
+
+    if(isHead){
+      // —— hover 表头：表头本身用深色档「加深」，并高亮对应整列 ——
+      if(d.th==="date" || d.th==="week"){
+        many(`td[data-day="${d.hday}"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="date"][data-hday="${d.hday}"]`), "th-hl-strong");
+        add(one(`th[data-th="week"][data-hday="${d.hday}"]`), "th-hl-strong");
+        many(`th[data-th="half"][data-hday="${d.hday}"]`).forEach(th=>th.classList.add("th-hl-strong"));
+      } else if(d.th==="half"){
+        many(`td[data-day="${d.hday}"][data-half="${d.hhalf}"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="date"][data-hday="${d.hday}"]`), "th-hl-strong");
+        add(one(`th[data-th="week"][data-hday="${d.hday}"]`), "th-hl-strong");
+        add(one(`th[data-th="half"][data-hday="${d.hday}"][data-hhalf="${d.hhalf}"]`), "th-hl-strong");
+      } else if(d.th==="stat"){
+        many(`td[data-col="${d.hcol}"]`).forEach(td=>td.classList.add("col-hl2"));
+        add(one(`th[data-th="stat"][data-hcol="${d.hcol}"]`), "th-hl2-strong");
+      } else if(d.th==="idx"){
+        many(`td[data-col="0"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="idx"]`), "th-hl-strong");
+      } else if(d.th==="name"){
+        many(`td[data-col="1"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="name"]`), "th-hl-strong");
+      }
+    } else {
+      // —— hover 数据格：表头用浅色档，当前格用中色+深边框 ——
+      if(d.stat==="1"){
+        many(`td[data-col="${d.col}"]`).forEach(td=>td.classList.add("col-hl2"));
+        add(one(`th[data-th="stat"][data-hcol="${d.col}"]`), "th-hl2");
+        el.classList.add("cell-hl2");
+      } else if(d.col==="0"){
+        many(`td[data-col="0"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="idx"]`), "th-hl");
+        el.classList.add("cell-hl");
+      } else if(d.col==="1"){
+        many(`td[data-col="1"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="name"]`), "th-hl");
+        el.classList.add("cell-hl");
+      } else {
+        many(`td[data-day="${d.day}"][data-half="${d.half}"]`).forEach(td=>td.classList.add("col-hl"));
+        add(one(`th[data-th="date"][data-hday="${d.day}"]`), "th-hl");
+        add(one(`th[data-th="week"][data-hday="${d.day}"]`), "th-hl");
+        add(one(`th[data-th="half"][data-hday="${d.day}"][data-hhalf="${d.half}"]`), "th-hl-strong");
+        el.classList.add("cell-hl");
+      }
+    }
+  }
+  $("attWrap").addEventListener("mouseover", e=>{
+    const el = e.target.closest("td[data-col], th[data-th]");
+    if(!el) return;
+    setAttHl(el);
+  });
+  $("attWrap").addEventListener("mouseout", e=>{
+    const el = e.target.closest("td[data-col], th[data-th]");
+    if(!el) return;
+    const rel = e.relatedTarget;
+    if(rel && rel.closest && rel.closest("td[data-col], th[data-th]")===el) return;
+    clearAttHl($("attWrap"));
+  });
+  // 总表修改 → 手动同步到罚款明细
+  $("btnSyncToDetail").onclick = ()=>{
+    if(!S.employees.length){ alert("请先导入打卡记录"); return; }
+    const n = syncAttToDetail();
+    alert(n ? ("已同步 "+n+" 条总表修改到罚款明细") : "总表没有需要同步的修改");
+  };
+  // 出差地 / 备注填写
+  $("tripWrap").addEventListener("change", e=>{
+    const p = e.target.closest("input.trip-place");
+    if(p){ S.tripPlaces[p.dataset.name] = p.value.trim(); savePersist(); return; }
+    const r = e.target.closest("input.trip-remark");
+    if(r){ S.tripRemarks[r.dataset.name] = r.value.trim(); savePersist(); }
+  });
+  // 出差登记表：清除某人全部出差记录
+  $("tripWrap").addEventListener("click", e=>{
+    const b = e.target.closest("[data-tripdel]"); if(!b) return;
+    const name = b.dataset.tripdel;
+    if(!confirm("确定清除 "+name+" 的全部出差记录吗？")) return;
+    pushUndo("清除出差");
+    clearTrip(name);
+    savePersist();
+    render();
+  });
+  // 备注显示/隐藏开关
+  $("btnToggleRemark").onclick = ()=>{ S.showTripRemark = !S.showTripRemark; renderTrip(); };
+  // 添加出差
+  $("btnAddTrip").onclick = ()=> openTripModal();
+  $("tCancel").onclick = ()=> $("tripModal").classList.remove("show");
+  $("tripModal").onclick = e=>{ if(e.target.id==="tripModal") $("tripModal").classList.remove("show"); };
+  $("tOk").onclick = submitTrip;
+  // 日期网格点击切换选中
+  $("t_days").addEventListener("click", e=>{
+    const d = e.target.closest(".day"); if(!d) return;
+    const day = +d.dataset.d;
+    if(tripSel.has(day)){ tripSel.delete(day); d.classList.remove("on"); }
+    else { tripSel.add(day); d.classList.add("on"); }
+  });
+  // 出差人员多选：搜索过滤 + 点击小模块选中/取消 + 全选/清空
+  $("t_search").addEventListener("input", ()=> renderTripNames());
+  $("t_names").addEventListener("click", e=>{
+    const chip = e.target.closest(".person-chip"); if(!chip) return;
+    const name = chip.dataset.person;
+    if(tripPersons.has(name)){ tripPersons.delete(name); chip.classList.remove("on"); }
+    else { tripPersons.add(name); chip.classList.add("on"); }
+    updateTripSelCount();
+  });
+  $("tSelAll").onclick = ()=>{
+    $("t_names").querySelectorAll(".person-chip").forEach(c=>{ c.classList.add("on"); tripPersons.add(c.dataset.person); });
+    updateTripSelCount();
+  };
+  $("tSelNone").onclick = ()=>{
+    $("t_names").querySelectorAll(".person-chip").forEach(c=>c.classList.remove("on"));
+    tripPersons.clear();
+    updateTripSelCount();
+  };
+  // Ctrl+Z / Cmd+Z 撤销
+  document.addEventListener("keydown", e=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){ e.preventDefault(); undo(); } });
+
+  // 参数变化重算
+  ["p_morning","p_rate","p_halfmin","p_afternoon","p_afternoon_rate","p_afternoon_halfmin","p_early_yuan","p_overtime"].forEach(id=>{
+    $(id).addEventListener("input", ()=>{ readParams(); render(); });
+  });
+  ["p_am_fine","p_pm_fine","p_early_fine","p_overtime_enabled"].forEach(id=>{
+    $(id).onclick = ()=>{ $(id).classList.toggle("on"); updateOvertimeRow(); readParams(); render(); };
+  });
+  // 部门下班时间（动态生成，change 保存）
+  $("deptCutsBox").addEventListener("change", e=>{
+    if(e.target.closest("input[data-dept]")){ readParams(); render(); }
+  });
+  // 核实方式切换（一键核实 / 选原因核实）
+  $("p_verify_mode").addEventListener("change", ()=>{ readParams(); render(); });
+
+  // 目录导航：点击平滑滚动到对应区块 + 滚动时高亮当前模块
+  const tocTargets = ["summaryGrid","detailCard","tripCard","attCard"];
+  function highlightToc(){
+    const btns = $("toc").querySelectorAll(".toc-btn");
+    const topBar = 80; // 目录栏高度 + 余量
+    let activeId = null;
+    for(const id of tocTargets){
+      const el = $(id); if(!el) continue;
+      const r = el.getBoundingClientRect();
+      if(r.top <= topBar && r.bottom > topBar){ activeId = id; break; }
+    }
+    if(!activeId){
+      for(const id of tocTargets){
+        const el = $(id); if(!el) continue;
+        if(el.getBoundingClientRect().top > topBar){ activeId = id; break; }
+      }
+      if(!activeId) activeId = tocTargets[tocTargets.length-1];
+    }
+    btns.forEach(b=>b.classList.toggle("active", b.dataset.target===activeId));
+  }
+  $("toc").addEventListener("click", e=>{
+    const b = e.target.closest(".toc-btn"); if(!b) return;
+    const target = $(b.dataset.target);
+    if(target) target.scrollIntoView({behavior:"smooth", block:"start"});
+  });
+  window.addEventListener("scroll", ()=>{ requestAnimationFrame(highlightToc); }, {passive:true});
+  window.addEventListener("resize", highlightToc);
+  window.highlightToc = highlightToc;   // 暴露给 render() 调用，导入/重算后刷新目录高亮
+  highlightToc();
+  // 出差登记表部门筛选
+  $("tripDeptFilter").addEventListener("change", e=>{
+    S.tripDeptFilter = e.target.value;
+    savePersist(); renderTrip();
+  });
+
+  // Tab
+  $("tabs").onclick = e=>{
+    const t = e.target.closest(".tab"); if(!t) return;
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active"); currentTab = t.dataset.tab; render();
+  };
+
+  // 员工表事件
+  $("empTable").addEventListener("click", e=>{
+    const el = e.target.closest("[data-act]"); if(!el) return;
+    const i = +el.dataset.i;
+    if(el.dataset.act==="ex"){ pushUndo("切换外勤"); S.employees[i].isExternal = !S.employees[i].isExternal; render(); }
+    if(el.dataset.act==="np"){ pushUndo("切换免打卡"); S.employees[i].noPunch = !S.employees[i].noPunch; render(); }
+    if(el.dataset.act==="del"){ if(confirm("确定删除 "+S.employees[i].name+" 吗？")){ pushUndo("删除员工"); S.employees.splice(i,1); render(); } }
+  });
+  $("empTable").addEventListener("change", e=>{
+    const el = e.target.closest("[data-act='grp']"); if(!el) return;
+    const i = +el.dataset.i;
+    pushUndo("修改休息组");
+    S.employees[i].group = el.value==="X" ? "" : el.value; // X=不休
+    render();
+  });
+  // 员工半天工资（失焦/回车保存）
+  $("empTable").addEventListener("change", e=>{
+    const el = e.target.closest("input.half-sal"); if(!el) return;
+    const i = +el.dataset.i;
+    const v = parseFloat(el.value);
+    pushUndo("修改半天工资");
+    S.employees[i].halfSalary = isNaN(v) ? 0 : v;
+    render();
+  });
+
+  // 明细核实下拉（事件委托）：选了免罚原因→该行淡出消失；选回空→恢复
+  $("detailList").addEventListener("change", e=>{
+    const sel = e.target.closest("select.verify"); if(!sel) return;
+    const ovKey = sel.dataset.ovkey;
+    if(sel.value){
+      pushUndo("核实免罚");
+      S.overrides[ovKey]=sel.value;
+      const tr = sel.closest("tr");
+      const card = sel.closest(".person-card");
+      if(tr){
+        tr.classList.add("fade-out");
+        // 若该卡片只剩这一条未核实的记录，整卡一起淡出
+        const remain = card ? card.querySelectorAll("tbody tr:not(.fade-out)").length : 2;
+        if(card && remain<=1) card.classList.add("fade-out-card");
+        setTimeout(()=>render(), 280);
+      } else {
+        render();
+      }
+    } else {
+      pushUndo("取消免罚");
+      delete S.overrides[ovKey];
+      render();
+    }
+  });
+
+  // 明细里单独改某条缺勤的半天金额（失焦/回车保存）
+  $("detailList").addEventListener("change", e=>{
+    const el = e.target.closest("input.half-amt"); if(!el) return;
+    const ovKey = el.dataset.ovkey;
+    const v = parseFloat(el.value);
+    pushUndo("修改半天金额");
+    if(isNaN(v)) delete S.halfOverrides[ovKey];
+    else S.halfOverrides[ovKey] = v;
+    render();
+  });
+
+  // 一键核实（免罚）按钮 & 已核实撤销按钮（事件委托）
+  $("detailList").addEventListener("click", e=>{
+    const vBtn = e.target.closest(".btn-verify");
+    const uBtn = e.target.closest(".btn-undo");
+    if(!vBtn && !uBtn) return;
+    const ovKey = (vBtn||uBtn).dataset.ovkey;
+
+    // 撤销：恢复为待核实
+    if(uBtn){
+      pushUndo("撤销免罚");
+      delete S.overrides[ovKey];
+      render();
+      return;
+    }
+
+    // 一键核实：直接免罚，reason 记「已核实」
+    pushUndo("核实免罚");
+    S.overrides[ovKey] = "已核实";
+    const tr = vBtn.closest("tr");
+    const card = vBtn.closest(".person-card");
+    if(tr){
+      tr.classList.add("fade-out");
+      const remain = card ? card.querySelectorAll("tbody tr:not(.fade-out)").length : 2;
+      if(card && remain<=1) card.classList.add("fade-out-card");
+      setTimeout(()=>render(), 280);
+    } else {
+      render();
+    }
+  });
+
+  $("btnGuess").onclick = ()=>{ guessGroups(); render(); };
+
+  // 添加员工
+  $("btnAddEmp").onclick = ()=>{ $("empModal").classList.add("show"); };
+  $("mCancel").onclick = ()=> $("empModal").classList.remove("show");
+  $("mOk").onclick = ()=>{
+    const name = $("m_name").value.trim();
+    if(!name){ alert("请填写姓名"); return; }
+    const half = +($("m_half").value)||0;
+    const grp = $("m_grp").value==="X" ? "" : $("m_grp").value;
+    pushUndo("添加员工");
+    S.employees.push({id:$("m_id").value.trim(), name, department:$("m_dept").value, dayTimes:{}, isExternal:$("m_ex").checked, group:grp, halfSalary:half, noPunch:$("m_np").checked});
+    $("empModal").classList.remove("show");
+    $("m_name").value=""; $("m_id").value=""; $("m_ex").checked=false; $("m_np").checked=false; $("m_half").value="50"; $("m_grp").value="X";
+    render();
+  };
+  $("empModal").onclick = e=>{ if(e.target.id==="empModal") $("empModal").classList.remove("show"); };
+
+  $("btnExport").disabled = false;
+  $("btnExportCenter").disabled = false;
+}
+
+/* ================= 初始化 ================= */
+loadPersist();
+if(S.persist.params) S.params = S.persist.params;
+writeParamsUI();
+readParams();
+bindEvents();
+render();
+</script>
+</body>
+</html>
